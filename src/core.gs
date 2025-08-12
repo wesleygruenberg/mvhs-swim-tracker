@@ -1,14 +1,22 @@
 /** =========================
- *  Coach Tools for MVHS Swim — v2.0
+ *  Coach Tools for MVHS Swim — v2.2
  *  Adds: Add Result sidebar, Add Meet sidebar, Add Event sidebar,
  *        Clone Clean Baseline (baseline events, no swimmers/meets)
  *  Keeps: Settings, JV toggle, PR Summary/Dashboard, presets, snapshots, usage checks, JV support, sample team
  *  =========================
  */
+const LIB_VER = 'v2.2.0';  // bump each push
+
+function libInfo() {
+  const id = ScriptApp.getScriptId();
+  SpreadsheetApp.getActive().toast(`CoachToolsCore ${LIB_VER}\nScript ID: ${id}`, 'Coach Tools', 6);
+  return { version: LIB_VER, id };
+}
 
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Coach Tools')
+    .addItem('About Coach Tools', 'aboutCoachTools')
     .addItem('Refresh All (safe)', 'refreshAll')
     .addSeparator()
     .addSubMenu(
@@ -51,6 +59,9 @@ function onOpen() {
 
 /** ---------- Refresh All ---------- */
 function refreshAll() {
+  try { const s = SpreadsheetApp.getActive().getSheetByName('PR Summary');   if (s) clearAllFilters_(s); } catch(e){}
+  try { const s = SpreadsheetApp.getActive().getSheetByName('Lineup Check'); if (s) clearAllFilters_(s); } catch(e){}
+
   try {
     ensureSettingsSheet();
     applyLimitsFromSettings();
@@ -403,6 +414,127 @@ function createSnapshot() {
   const snap = src.copyTo(ss).setName(name);
   snap.getDataRange().copyTo(snap.getDataRange(), {contentsOnly:true});
   toast(`Snapshot saved: ${name}`);
+}
+function setupPRSuite() {
+  createPRSummary();
+  createSwimmerDashboard();
+}
+
+function createPRSummary() {
+  const ss = SpreadsheetApp.getActive();
+  const results = ss.getSheetByName('Results');
+  if (!results) throw new Error("Missing 'Results' sheet.");
+
+  const outName = 'PR Summary';
+  let out = ss.getSheetByName(outName) || ss.insertSheet(outName);
+  out.clear();
+
+  // Results columns: A Meet, B Event, C Swimmer, D Seed, E Final, F Place, G Notes, H Date, I Is PR?, J Current PR
+  const lastRow = results.getLastRow();
+  if (lastRow < 2) {
+    out.getRange(1,1).setValue('No results yet.');
+    return;
+  }
+  const data = results.getRange(2,1,lastRow-1,10).getValues();
+
+  // Build maps keyed by "swimmer|event"
+  const best = new Map(); // key -> {time, meet, date, count}
+  const latest = new Map(); // key -> {time, date, meet}
+  for (const r of data) {
+    const [meet, event, swimmer, seed, finalTime, , , date] = r;
+    if (!swimmer || !event || finalTime === "" || finalTime == null) continue;
+    const key = swimmer + '|' + event;
+    const t = finalTime; // stored as a serial number (fraction of a day)
+    // Count + best
+    const b = best.get(key);
+    if (!b) best.set(key, {time: t, meet, date, count: 1});
+    else {
+      b.count++;
+      if (t < b.time) { b.time = t; b.meet = meet; b.date = date; }
+    }
+    // Latest (by date)
+    const L = latest.get(key);
+    if (!L || (date && date > L.date)) latest.set(key, {time: t, date, meet});
+  }
+
+  // Emit rows
+  const rows = [];
+  for (const [key, v] of best.entries()) {
+    const [swimmer, event] = key.split('|');
+    const L = latest.get(key);
+    rows.push([
+      swimmer,
+      event,
+      v.time,      // PR Time
+      v.meet || "",// PR Meet
+      v.date || "",// PR Date
+      v.count,     // Races
+      L ? L.time : "", // Last Swim
+    ]);
+  }
+  rows.sort((a,b)=> a[0].localeCompare(b[0]) || a[1].localeCompare(b[1]));
+
+  // Header
+  const header = ['Swimmer','Event','PR Time','PR Meet','PR Date','Races','Last Swim','Δ vs PR'];
+  out.getRange(1,1,1,header.length).setValues([header]).setFontWeight('bold');
+
+  if (rows.length) {
+    out.getRange(2,1,rows.length,7).setValues(rows);
+    // Add Δ vs PR
+    out.getRange(2,8,rows.length,1).setFormulaR1C1('=IF(AND(RC[-1]<>"",RC[-5]<>""),RC[-1]-RC[-5],"")');
+  }
+
+  // Formats + niceties
+  out.setFrozenRows(1);
+  safeCreateFilter_(out, out.getRange(1,1,Math.max(2,rows.length+1),8));
+  out.getRange('C2:C').setNumberFormat('mm:ss.00'); // PR Time
+  out.getRange('G2:G').setNumberFormat('mm:ss.00'); // Last Swim
+  out.getRange('H2:H').setNumberFormat('[m]:ss.00'); // Δ vs PR (can be 0:xx.xx)
+  out.autoResizeColumns(1,8);
+}
+
+function createSwimmerDashboard() {
+  const ss = SpreadsheetApp.getActive();
+  const prs = ss.getSheetByName('PR Summary') || createPRSummary();
+  const swSheet = ss.getSheetByName('Swimmers');
+  if (!swSheet) throw new Error("Missing 'Swimmers' sheet.");
+
+  // Ensure a named range for swimmers exists (dynamic full column)
+  ss.setNamedRange('SwimmerNames', swSheet.getRange('A2:A'));
+
+  const name = 'Swimmer Dashboard';
+  let dash = ss.getSheetByName(name) || ss.insertSheet(name);
+  dash.clear();
+
+  // Title + selector
+  dash.getRange('A1').setValue('Swimmer Dashboard').setFontWeight('bold').setFontSize(14);
+  dash.getRange('A3').setValue('Swimmer:').setFontWeight('bold');
+  dash.getRange('B3').setDataValidation(
+    SpreadsheetApp.newDataValidation().requireValueInRange(ss.getRangeByName('SwimmerNames'), true).build()
+  );
+  dash.getRange('B3').setNote('Select a swimmer to filter PRs');
+
+  // Headers
+  const headers = ['Event','PR Time','PR Meet','PR Date','Races','Last Swim','Δ vs PR'];
+  dash.getRange('A5:G5').setValues([headers]).setFontWeight('bold');
+
+  // Filtered view (array formula pulls from PR Summary)
+  // PR Summary layout: A Swimmer, B Event, C PR Time, D PR Meet, E PR Date, F Races, G Last Swim, H Δ
+  dash.getRange('A6').setFormula(`
+=IF(B3="","",
+  QUERY('PR Summary'!A2:H,
+    "select B,C,D,E,F,G,H where A = '" & B3 & "' order by B",
+    0
+  )
+)
+  `.trim());
+
+  // Formats
+  dash.getRange('B6:B').setNumberFormat('mm:ss.00'); // PR Time
+  dash.getRange('G6:G').setNumberFormat('[m]:ss.00'); // Δ vs PR
+  dash.getRange('F6:F').setNumberFormat('mm:ss.00'); // Last Swim
+  dash.setFrozenRows(5);
+  dash.autoResizeColumns(1,7);
 }
 
 function refreshPRs() {
@@ -1386,12 +1518,90 @@ function go(){
   return tmpl;
 }
 
-function safeCreateFilter_(sheet, range) {
+// ===== Debug utilities =====
+const DEBUG = true;               // flip to false to silence sheet logging (console stays)
+const AUTO_FILTERS = true;        // global off-switch for programmatic filters
+
+function debugLog_(step, msg, data) {
+  const ts = new Date();
+  const stamp = Utilities.formatDate(ts, Session.getScriptTimeZone(), 'HH:mm:ss');
+  console.log(`[DEBUG ${stamp}] [${step}] ${msg} ${data ? JSON.stringify(data) : ''}`);
+  if (!DEBUG) return;
   try {
-    const f = sheet.getFilter && sheet.getFilter();
-    if (f) f.remove();                 // remove existing basic filter
-  } catch (e) {
-    // ignore; some sheets won't support getFilter in older contexts
-  }
-  range.createFilter();                // then create a fresh one
+    const ss = SpreadsheetApp.getActive();
+    let sh = ss.getSheetByName('_Debug');
+    if (!sh) { sh = ss.insertSheet('_Debug'); sh.getRange(1,1,1,4).setValues([['Time','Step','Message','Data']]).setFontWeight('bold'); }
+    sh.appendRow([ts, step, msg, data ? JSON.stringify(data) : '']);
+  } catch(_) {}
 }
+
+function withStep_(name, fn) {
+  const t0 = Date.now();
+  debugLog_(name, 'start');
+  try {
+    const res = fn();
+    debugLog_(name, 'ok', {ms: Date.now() - t0});
+    return res;
+  } catch (e) {
+    debugLog_(name, 'ERROR', {ms: Date.now() - t0, err: String(e), stack: e && e.stack});
+    throw new Error(`${name}: ${e.message}`);
+  }
+}
+
+// Filter state & cleanup (uses Advanced Sheets API if available)
+function getFilterState_(sheet) {
+  const hasBasic = !!(sheet.getFilter && sheet.getFilter());
+  let viewCount = null;
+  try {
+    const ssId = SpreadsheetApp.getActive().getId();
+    const meta = Sheets.Spreadsheets.get(ssId, { fields: 'sheets(properties.sheetId,filterViews(filterViewId))' });
+    const me = (meta.sheets || []).find(s => s.properties && s.properties.sheetId === sheet.getSheetId());
+    viewCount = me && me.filterViews ? me.filterViews.length : 0;
+  } catch (e) { viewCount = -1; } // -1 means Advanced Service unavailable
+  return { hasBasic, viewCount };
+}
+
+function clearAllFilters_(sheet) {
+  const ssId = SpreadsheetApp.getActive().getId();
+  const sheetId = sheet.getSheetId();
+  try {
+    const meta = Sheets.Spreadsheets.get(ssId, { fields: 'sheets(properties.sheetId,filterViews(filterViewId))' });
+    const me = (meta.sheets || []).find(s => s.properties && s.properties.sheetId === sheetId);
+    const views = (me && me.filterViews) ? me.filterViews : [];
+    const requests = [{ clearBasicFilter: { sheetId } }];
+    for (const v of views) requests.push({ deleteFilterView: { filterId: v.filterViewId } });
+    if (requests.length) Sheets.Spreadsheets.batchUpdate({ requests }, ssId);
+    debugLog_('clearAllFilters_', 'cleared', { sheet: sheet.getName(), views: views.length });
+  } catch (e) {
+    debugLog_('clearAllFilters_', 'skipped (no Advanced Service?)', { sheet: sheet.getName(), err: String(e) });
+  }
+}
+
+// Always use this instead of range.createFilter()
+function safeCreateFilter_(sheet, range, tag) {
+  if (!AUTO_FILTERS) { debugLog_('safeCreateFilter_', 'AUTO_FILTERS=false; skipped', {sheet: sheet.getName(), tag}); return; }
+  try { clearAllFilters_(sheet); } catch(e) {}
+  try { const f = sheet.getFilter && sheet.getFilter(); if (f) f.remove(); } catch(e) {}
+  try {
+    range.createFilter();
+    debugLog_('safeCreateFilter_', 'created', {sheet: sheet.getName(), tag});
+  } catch (e) {
+    const msg = String(e && e.message || e);
+    if (msg.indexOf('already has a filter') === -1) { debugLog_('safeCreateFilter_', 'ERROR', {sheet: sheet.getName(), tag, err: msg}); throw e; }
+    debugLog_('safeCreateFilter_', 'skipped (already exists)', {sheet: sheet.getName(), tag});
+    SpreadsheetApp.getActive().toast(`Skipped filter on ${tag || sheet.getName()} (already exists)`, 'Coach Tools', 3);
+  }
+}
+
+// Quick menu hook to dump filter state
+function debugDumpFilters() {
+  const ss = SpreadsheetApp.getActive();
+  ['PR Summary','Lineup Check'].forEach(name => {
+    const sh = ss.getSheetByName(name);
+    if (!sh) return;
+    const st = getFilterState_(sh);
+    debugLog_('debugDumpFilters', name, st);
+    SpreadsheetApp.getActive().toast(`${name}: basic=${st.hasBasic} views=${st.viewCount}`, 'Coach Tools', 5);
+  });
+}
+
