@@ -2,3 +2,5 @@ node_modules/
 .clasprc.json
 sync.sh
 .clasp.json
+/mvhs-swim-tracker/
+/src/mvhs-swim-tracker/
