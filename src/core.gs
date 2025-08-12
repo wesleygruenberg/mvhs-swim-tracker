@@ -1387,7 +1387,11 @@ function go(){
 }
 
 function safeCreateFilter_(sheet, range) {
-  const f = sheet.getFilter && sheet.getFilter();
-  if (f) f.remove();              // drop existing basic filter if present
-  range.createFilter();           // then make a fresh one
+  try {
+    const f = sheet.getFilter && sheet.getFilter();
+    if (f) f.remove();                 // remove existing basic filter
+  } catch (e) {
+    // ignore; some sheets won't support getFilter in older contexts
+  }
+  range.createFilter();                // then create a fresh one
 }
