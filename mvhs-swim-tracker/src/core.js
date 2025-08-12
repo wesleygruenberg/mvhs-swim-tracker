@@ -51,9 +51,6 @@ function onOpen() {
 
 /** ---------- Refresh All ---------- */
 function refreshAll() {
-  try { const s = SpreadsheetApp.getActive().getSheetByName('PR Summary');    if (s && s.getFilter()) s.getFilter().remove(); } catch(e){}
-  try { const s = SpreadsheetApp.getActive().getSheetByName('Lineup Check');  if (s && s.getFilter()) s.getFilter().remove(); } catch(e){}
-
   try {
     ensureSettingsSheet();
     applyLimitsFromSettings();
@@ -1390,11 +1387,7 @@ function go(){
 }
 
 function safeCreateFilter_(sheet, range) {
-  try {
-    const f = sheet.getFilter && sheet.getFilter();
-    if (f) f.remove();                 // remove existing basic filter
-  } catch (e) {
-    // ignore; some sheets won't support getFilter in older contexts
-  }
-  range.createFilter();                // then create a fresh one
+  const f = sheet.getFilter && sheet.getFilter();
+  if (f) f.remove();              // drop existing basic filter if present
+  range.createFilter();           // then make a fresh one
 }
