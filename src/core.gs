@@ -7,6 +7,28 @@
  */
 const LIB_VER = 'v2.2.0';  // bump each push
 
+// Sheet name constants - centralized to avoid typos and enable easy renaming
+const SHEET_NAMES = {
+  RESULTS: 'Results',
+  SWIMMERS: 'Swimmers', 
+  EVENTS: 'Events',
+  MEETS: 'Meets',
+  MEET_ENTRY: 'Meet Entry',
+  MEET_EVENTS: 'Meet Events',
+  SETTINGS: 'Settings',
+  PR_SUMMARY: 'PR Summary',
+  LINEUP_CHECK: 'Lineup Check',
+  SWIMMER_DASHBOARD: 'Swimmer Dashboard',
+  COACH_PACKET: 'Coach Packet'
+};
+
+// Configuration constants
+const CONFIG = {
+  MAX_ENTRY_ROWS: 206,
+  MIN_BUFFER_ROWS: 1000,
+  BUFFER_EXTRA_ROWS: 200
+};
+
 function libInfo() {
   const id = ScriptApp.getScriptId();
   SpreadsheetApp.getActive().toast(`CoachToolsCore ${LIB_VER}\nScript ID: ${id}`, 'Coach Tools', 6);
@@ -146,7 +168,7 @@ function setupValidations() {
   ss.setNamedRange('MeetNames',    me.getRange('A2:A'));
   ss.setNamedRange('EventNames',   ev.getRange('A2:A'));
 
-  const startRow = 6, last = 206;
+  const startRow = 6, last = CONFIG.MAX_ENTRY_ROWS;
   entry.getRange(`A${startRow}:A${last}`).insertCheckboxes();
 
   const dvMeet    = SpreadsheetApp.newDataValidation().requireValueInRange(ss.getRangeByName('MeetNames'), true).build();
@@ -157,7 +179,7 @@ function setupValidations() {
   entry.getRange(`H${startRow}:H${last}`).setDataValidation(dvSwimmer);
   entry.getRange(`I${startRow}:L${last}`).setDataValidation(dvSwimmer);
 
-  const resLast = Math.max(1000, results.getLastRow()+200);
+  const resLast = Math.max(CONFIG.MIN_BUFFER_ROWS, results.getLastRow()+CONFIG.BUFFER_EXTRA_ROWS);
   results.getRange('A2:A' + resLast).setDataValidation(dvMeet);
   results.getRange('B2:B' + resLast).setDataValidation(dvEvent);
   results.getRange('C2:C' + resLast).setDataValidation(dvSwimmer);
@@ -165,11 +187,11 @@ function setupValidations() {
 
   const rules = [];
   rules.push(SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(`=AND($H6<>"",COUNTIFS($H$6:$H$206,$H6,$C$6:$C$206,"Individual",$A$6:$A$206,TRUE)>$B$2)`)
-    .setRanges([entry.getRange('H6:H206')]).setBackground('#F4CCCC').build());
+    .whenFormulaSatisfied(`=AND($H6<>"",COUNTIFS($H$6:$H$${CONFIG.MAX_ENTRY_ROWS},$H6,$C$6:$C$${CONFIG.MAX_ENTRY_ROWS},"Individual",$A$6:$A$${CONFIG.MAX_ENTRY_ROWS},TRUE)>$B$2)`)
+    .setRanges([entry.getRange(`H6:H${CONFIG.MAX_ENTRY_ROWS}`)]).setBackground('#F4CCCC').build());
   rules.push(SpreadsheetApp.newConditionalFormatRule()
-    .whenFormulaSatisfied(`=AND($I6<>"",SUMPRODUCT(($I$6:$L$206=$I6)*($A$6:$A$206=TRUE))>$B$3)`)
-    .setRanges([entry.getRange('I6:L206')]).setBackground('#F4CCCC').build());
+    .whenFormulaSatisfied(`=AND($I6<>"",SUMPRODUCT(($I$6:$L$${CONFIG.MAX_ENTRY_ROWS}=$I6)*($A$6:$A$${CONFIG.MAX_ENTRY_ROWS}=TRUE))>$B$3)`)
+    .setRanges([entry.getRange(`I6:L${CONFIG.MAX_ENTRY_ROWS}`)]).setBackground('#F4CCCC').build());
   rules.push(SpreadsheetApp.newConditionalFormatRule()
     .whenFormulaSatisfied(`=AND(I6<>"",COUNTIF($I6:$L6,I6)>1)`)
     .setRanges([entry.getRange('I6:L206')]).setBackground('#FFE699').build());
@@ -923,7 +945,7 @@ function setupValidationsFor_(ss) {
   ss.setNamedRange('MeetNames',    me.getRange('A2:A'));
   ss.setNamedRange('EventNames',   ev.getRange('A2:A'));
 
-  const startRow = 6, last = 206;
+  const startRow = 6, last = CONFIG.MAX_ENTRY_ROWS;
   entry.getRange(`A${startRow}:A${last}`).insertCheckboxes();
 
   const dvMeet    = SpreadsheetApp.newDataValidation().requireValueInRange(ss.getRangeByName('MeetNames'), true).build();
@@ -932,7 +954,7 @@ function setupValidationsFor_(ss) {
   entry.getRange(`H${startRow}:H${last}`).setDataValidation(dvSwimmer);
   entry.getRange(`I${startRow}:L${last}`).setDataValidation(dvSwimmer);
 
-  const resLast = Math.max(1000, results.getLastRow()+200);
+  const resLast = Math.max(CONFIG.MIN_BUFFER_ROWS, results.getLastRow()+CONFIG.BUFFER_EXTRA_ROWS);
   const dvEvent   = SpreadsheetApp.newDataValidation().requireValueInRange(ss.getRangeByName('EventNames'), true).build();
   results.getRange('A2:A' + resLast).setDataValidation(dvMeet);
   results.getRange('B2:B' + resLast).setDataValidation(dvEvent);
@@ -1098,7 +1120,7 @@ function openAddResultSidebar() {
 function listMeetNames_(){ return getColValues(mustSheet('Meets'),1,2); }
 function listSwimmerNames_(){ return getColValues(mustSheet('Swimmers'),1,2); }
 function listEventNames_(){ return getColValues(mustSheet('Events'),1,2); }
-function listActiveEventsForMeet_(meet) {
+function listActiveEventsForMeet(meet) {
   if (!meet) return listEventNames_();
   const presets = mustSheet('Meet Events');
   const last = presets.getLastRow(); if (last < 2) return listEventNames_();
@@ -1107,7 +1129,7 @@ function listActiveEventsForMeet_(meet) {
   for (const [m,e,active] of vals) { if (m===meet && !!active && e) set.push(e); }
   return set.length ? set : listEventNames_();
 }
-function getCurrentPR_(swimmer, eventName) {
+function getCurrentPR(swimmer, eventName) {
   if (!swimmer || !eventName) return null;
   const res = mustSheet('Results');
   const last = res.getLastRow(); if (last < 2) return null;
@@ -1120,7 +1142,7 @@ function getCurrentPR_(swimmer, eventName) {
   }
   return best; // serial or null
 }
-function addResultRow_(payload) {
+function addResultRow(payload) {
   const res = mustSheet('Results');
   const meet = String(payload.meet||'').trim();
   const eventName = String(payload.event||'').trim();
@@ -1176,7 +1198,7 @@ function fill(sel, arr){ sel.innerHTML=''; arr.forEach(v=>{const o=document.crea
 
 fill(meetSel, MEETS); fill(swimSel, SWIMMERS); fill(eventSel, ALL_EVENTS);
 
-meetSel.addEventListener('change', ()=>{ google.script.run.withSuccessHandler(list=>{ fill(eventSel, list); prCheck(); }).listActiveEventsForMeet_(meetSel.value); });
+meetSel.addEventListener('change', ()=>{ google.script.run.withSuccessHandler(list=>{ fill(eventSel, list); prCheck(); }).listActiveEventsForMeet(meetSel.value); });
 eventSel.addEventListener('change', prCheck); swimSel.addEventListener('change', prCheck);
 
 function prCheck(){
@@ -1186,7 +1208,7 @@ function prCheck(){
     // Convert serial days -> mm:ss.xx
     const sec = serial*86400; const m=Math.floor(sec/60); const s=(sec%60).toFixed(2).padStart(5,'0'); 
     hint.innerHTML = 'Current PR: <b>'+m+':'+s+'</b>';
-  }).getCurrentPR_(sw, ev);
+  }).getCurrentPR(sw, ev);
 }
 
 function submitForm(){
@@ -1198,7 +1220,7 @@ function submitForm(){
   };
   google.script.run.withSuccessHandler(()=>{ alert('Saved ✓'); google.script.host.close(); })
     .withFailureHandler(err=>alert('Error: '+err.message))
-    .addResultRow_(payload);
+    .addResultRow(payload);
 }
 </script></body></html>`;
 }
@@ -1210,7 +1232,7 @@ function openAddMeetSidebar() {
   const html = HtmlService.createHtmlOutput(addMeetSidebarHtml_()).setTitle('Add Meet');
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function addMeet_(payload) {
+function addMeet(payload) {
   const me = mustSheet('Meets');
   const name = String(payload.name||'').trim();
   if (!name) throw new Error('Meet name is required.');
@@ -1244,7 +1266,7 @@ function go(){
   const p={name:document.getElementById('name').value,date:document.getElementById('date').value,location:document.getElementById('location').value,course:document.getElementById('course').value,notes:document.getElementById('notes').value};
   if(!p.name.trim()){alert('Name is required.');return;}
   google.script.run.withSuccessHandler(()=>{alert('Meet added ✓');google.script.host.close();})
-    .withFailureHandler(err=>alert('Error: '+err.message)).addMeet_(p);
+    .withFailureHandler(err=>alert('Error: '+err.message)).addMeet(p);
 }
 </script></body></html>`;
 }
@@ -1253,7 +1275,8 @@ function openAddEventSidebar() {
   const html = HtmlService.createHtmlOutput(addEventSidebarHtml_()).setTitle('Add Event');
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function addEvent_(payload) {
+function addEvent(payload) {
+  debugLog_('addEvent', 'called', payload);
   const ev = mustSheet('Events');
   const name = String(payload.name||'').trim();
   if (!name) throw new Error('Event name is required.');
@@ -1263,15 +1286,23 @@ function addEvent_(payload) {
   const defActive = !!payload.defaultActive;
   const addJV = !!payload.addJV;
   const reseed = !!payload.reseed;
+  
+  debugLog_('addEvent', 'parsed values', {name, type, dist, stroke, defActive, addJV, reseed});
 
   ev.appendRow([name, type, dist||'', stroke, defActive]);
-  if (addJV) ev.appendRow([`${name} (JV)`, type, dist||'', stroke, defActive]);
+  debugLog_('addEvent', 'added main event row', {name, type, dist, stroke, defActive});
+  if (addJV) {
+    ev.appendRow([`${name} (JV)`, type, dist||'', stroke, defActive]);
+    debugLog_('addEvent', 'added JV event row', {name: `${name} (JV)`, type, dist, stroke, defActive});
+  }
 
   if (reseed) {
     reseedMeetEntryFromEvents_();
+    debugLog_('addEvent', 'reseeded meet entry');
   }
   ensureMeetEventsTemplate();
   setupValidations();
+  debugLog_('addEvent', 'completed successfully');
 
   return {ok:true};
 }
@@ -1296,9 +1327,17 @@ label{display:block;margin-top:8px;font-weight:bold}input,select{width:100%;padd
 <script>
 function go(){
   const p={name:document.getElementById('name').value,type:document.getElementById('type').value,distance:document.getElementById('dist').value,stroke:document.getElementById('stroke').value,defaultActive:document.getElementById('def').checked,addJV:document.getElementById('jv').checked,reseed:document.getElementById('reseed').checked};
+  console.log('Form data:', p);
   if(!p.name.trim()){alert('Event name is required.');return;}
-  google.script.run.withSuccessHandler(()=>{alert('Event added ✓');google.script.host.close();})
-    .withFailureHandler(err=>alert('Error: '+err.message)).addEvent_(p);
+  console.log('Calling addEvent with payload:', p);
+  google.script.run.withSuccessHandler((result)=>{
+    console.log('Success:', result);
+    alert('Event added ✓');
+    google.script.host.close();
+  }).withFailureHandler(err=>{
+    console.error('Error:', err);
+    alert('Error: '+err.message);
+  }).addEvent(p);
 }
 </script></body></html>`;
 }
@@ -1351,7 +1390,7 @@ function openBulkImportSidebar() {
 }
 
 // Server: do the import
-function bulkImport_(payload) {
+function bulkImport(payload) {
   const type = String(payload.type||'').toLowerCase(); // 'swimmers' | 'meets' | 'pr'
   const csv  = String(payload.csv||'').trim();
   const hasHeader = !!payload.hasHeader;
@@ -1511,7 +1550,7 @@ function go(){
     document.getElementById('msg').textContent = 'Done: '+res.inserted+' '+res.kind+' imported.';
   }).withFailureHandler(err=>{
     document.getElementById('msg').textContent = 'Error: '+err.message;
-  }).bulkImport_(payload);
+  }).bulkImport(payload);
 }
 </script>
 </body></html>`;
@@ -1579,7 +1618,11 @@ function clearAllFilters_(sheet) {
 
 // Always use this instead of range.createFilter()
 function safeCreateFilter_(sheet, range, tag) {
-  if (!AUTO_FILTERS) { debugLog_('safeCreateFilter_', 'AUTO_FILTERS=false; skipped', {sheet: sheet.getName(), tag}); return; }
+  if (!autoFiltersEnabled_()) { 
+    debugLog_('safeCreateFilter_', 'AUTO_FILTERS=false (meet day mode); cleared filters', {sheet: sheet.getName(), tag}); 
+    try { clearAllFilters_(sheet); } catch(_){} 
+    return; 
+  }
   try { clearAllFilters_(sheet); } catch(e) {}
   try { const f = sheet.getFilter && sheet.getFilter(); if (f) f.remove(); } catch(e) {}
   try {
@@ -1605,3 +1648,88 @@ function debugDumpFilters() {
   });
 }
 
+/***** MEET DAY MODE *****/
+
+// Persist per-spreadsheet
+function isMeetDayModeOn_() {
+  return PropertiesService.getDocumentProperties().getProperty('MEET_DAY') === '1';
+}
+function setMeetDayMode_(on) {
+  PropertiesService.getDocumentProperties().setProperty('MEET_DAY', on ? '1' : '0');
+  applyMeetDayModeEffects_(on);
+  SpreadsheetApp.getActive().toast(`Meet Day Mode: ${on ? 'ON' : 'OFF'}`, 'Coach Tools', 5);
+}
+function toggleMeetDayMode() { setMeetDayMode_(!isMeetDayModeOn_()); }
+function meetDayStatus() {
+  const on = isMeetDayModeOn_();
+  const id = ScriptApp.getScriptId ? ScriptApp.getScriptId() : '(lib)';
+  SpreadsheetApp.getActive().toast(`CoachToolsCore • ${on ? 'MEET DAY ON' : 'Meet Day off'} • ${typeof LIB_VER!=='undefined'?LIB_VER:''}`, 'Coach Tools', 6);
+  return { on, version: (typeof LIB_VER!=='undefined'?LIB_VER:''), id };
+}
+
+// Auto-filters should be OFF during meet day
+function autoFiltersEnabled_() { return !isMeetDayModeOn_(); }
+
+// Apply visual/UX changes for meet mode
+function applyMeetDayModeEffects_(on) {
+  const ss = SpreadsheetApp.getActive();
+
+  // 1) Clear filters on key sheets and suppress future ones via autoFiltersEnabled_()
+  ['PR Summary','Lineup Check'].forEach(name => {
+    const sh = ss.getSheetByName(name);
+    if (sh) { try { clearAllFilters_(sh); } catch(_) {} }
+  });
+
+  // 2) Lock admin-ish sheets during meet; unlock when off
+  const toLock = ['Settings','Events','Meet Events','Results'];
+  const tag = 'CoachTools: Meet Day Lock';
+  if (on) {
+    toLock.forEach(n => {
+      const sh = ss.getSheetByName(n); if (!sh) return;
+      // avoid duplicates
+      const existing = sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).find(p => p.getDescription() === tag);
+      if (!existing) {
+        const p = sh.protect().setDescription(tag);
+        try { p.removeEditors(p.getEditors()); } catch(_) {}
+      }
+    });
+  } else {
+    ss.getSheets().forEach(sh => {
+      sh.getProtections(SpreadsheetApp.ProtectionType.SHEET).forEach(p => {
+        if (p.getDescription() === tag) p.remove();
+      });
+    });
+  }
+
+  // 3) Hide admin sheets on meet day; unhide when off
+  toLock.forEach(n => {
+    const sh = ss.getSheetByName(n); if (!sh) return;
+    try { sh.setHidden(on); } catch(_) {}
+  });
+
+  // 4) Make Coach Packet extra legible
+  const cp = ss.getSheetByName('Coach Packet');
+  if (cp) {
+    try {
+      cp.setFrozenRows(3);
+      cp.getRange('A1:E1').setFontWeight('bold').setFontSize(on ? 14 : 12);
+      cp.getRange('A3:E').setWrap(true).setVerticalAlignment('middle').setFontSize(on ? 12 : 10);
+      // subtle borders for readability
+      const lr = Math.max(3, cp.getLastRow());
+      cp.getRange(3,1,lr-2,5).setBorder(false,true,false,true,false,false,'#cccccc',SpreadsheetApp.BorderStyle.SOLID);
+    } catch(_) {}
+  }
+
+  // 5) Add a tiny status hint on Meet Entry title
+  const entry = ss.getSheetByName('Meet Entry');
+  if (entry) {
+    const v = entry.getRange('A1').getDisplayValue();
+    const base = v.replace(/\s+—\s+MEET DAY.*$/,'');
+    entry.getRange('A1').setValue(on ? `${base} — MEET DAY` : base);
+  }
+}
+
+function buildBulkImportSidebar() {
+  return HtmlService.createHtmlOutput(bulkImportSidebarHtml_())
+    .setTitle('Bulk Import');
+}
