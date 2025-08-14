@@ -9,27 +9,6 @@ const LIB_VER = 'v2.2.0';  // bump each push
 
 // Sheet name constants - centralized to avoid typos and enable easy renaming
 const SHEET_NAMES = {
-  RESULTS: 'Results',
-  SWIMMERS: 'Swimmers', 
-  EVENTS: 'Events',
-  MEETS: 'Meets',
-  MEET_ENTRY: 'Meet Entry',
-  MEET_EVENTS: 'Meet Events',
-  SETTINGS: 'Settings',
-  PR_SUMMARY: 'PR Summary',
-  LINEUP_CHECK: 'Lineup Check',
-  SWIMMER_DASHBOARD: 'Swimmer Dashboard',
-  COACH_PACKET: 'Coach Packet'
-};
-
-// Configuration constants
-const CONFIG = {
-  MAX_ENTRY_ROWS: 206,
-  MIN_BUFFER_ROWS: 1000,
-  BUFFER_EXTRA_ROWS: 200
-};
-
-const SHEET_NAMES = {
   MEET_ENTRY: 'Meet Entry',
   SWIMMERS: 'Swimmers',
   MEETS: 'Meets',
@@ -41,6 +20,13 @@ const SHEET_NAMES = {
   SWIMMER_DASHBOARD: 'Swimmer Dashboard',
   COACH_PACKET: 'Coach Packet',
   SETTINGS: 'Settings'
+};
+
+// Configuration constants
+const CONFIG = {
+  MAX_ENTRY_ROWS: 206,
+  MIN_BUFFER_ROWS: 1000,
+  BUFFER_EXTRA_ROWS: 200
 };
 
 const EVENT_TYPES = {
@@ -472,8 +458,8 @@ function setupPRSuite() {
 
 function createPRSummary() {
   const ss = SpreadsheetApp.getActive();
-  const results = ss.getSheetByName('Results');
-  if (!results) throw new Error("Missing 'Results' sheet.");
+  const results = ss.getSheetByName(SHEET_NAMES.RESULTS);
+  if (!results) throw new Error(`Missing '${SHEET_NAMES.RESULTS}' sheet.`);
 
   const outName = 'PR Summary';
   let out = ss.getSheetByName(outName) || ss.insertSheet(outName);
@@ -659,7 +645,7 @@ function createSwimmerDashboard() {
 function buildCoachPacket() {
   const ss = SpreadsheetApp.getActive();
   const entry = mustSheet('Meet Entry');
-  const cp = ss.getSheetByName('Coach Packet') || ss.insertSheet('Coach Packet');
+  const cp = ss.getSheetByName(SHEET_NAMES.COACH_PACKET) || ss.insertSheet(SHEET_NAMES.COACH_PACKET);
   cp.clear();
 
   const meet = entry.getRange('B1').getDisplayValue() || 'Unspecified Meet';
@@ -1145,9 +1131,9 @@ function openAddResultSidebar() {
   const html = HtmlService.createHtmlOutput(addResultSidebarHtml_()).setTitle('Add Result');
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function listMeetNames_(){ return getColValues(mustSheet('Meets'),1,2); }
-function listSwimmerNames_(){ return getColValues(mustSheet('Swimmers'),1,2); }
-function listEventNames_(){ return getColValues(mustSheet('Events'),1,2); }
+function listMeetNames_(){ return getColValues(mustSheet(SHEET_NAMES.MEETS),1,2); }
+function listSwimmerNames_(){ return getColValues(mustSheet(SHEET_NAMES.SWIMMERS),1,2); }
+function listEventNames_(){ return getColValues(mustSheet(SHEET_NAMES.EVENTS),1,2); }
 function listActiveEventsForMeet(meet) {
   if (!meet) return listEventNames_();
   const presets = mustSheet('Meet Events');
