@@ -95,8 +95,8 @@ function onOpen() {
 
 /** ---------- Refresh All ---------- */
 function refreshAll() {
-  try { const s = SpreadsheetApp.getActive().getSheetByName('PR Summary');   if (s) clearAllFilters_(s); } catch(e){}
-  try { const s = SpreadsheetApp.getActive().getSheetByName('Lineup Check'); if (s) clearAllFilters_(s); } catch(e){}
+  try { const s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.PR_SUMMARY);   if (s) clearAllFilters_(s); } catch(e){ console.log('Failed to clear PR Summary filters:', e.message); }
+  try { const s = SpreadsheetApp.getActive().getSheetByName(SHEET_NAMES.LINEUP_CHECK); if (s) clearAllFilters_(s); } catch(e){ console.log('Failed to clear Lineup Check filters:', e.message); }
 
   try {
     ensureSettingsSheet();
@@ -1053,8 +1053,8 @@ function addSwimmerWithPRs(payload) {
     const startRow = results.getLastRow() + 1;
     results.getRange(startRow,1,rows.length,8).setValues(rows);
   }
-  try { setupValidations(); } catch(e) {}
-  try { refreshPRs(); } catch(e) {}
+  try { setupValidations(); } catch(e) { console.log('Failed to setup validations:', e.message); }
+  try { refreshPRs(); } catch(e) { console.log('Failed to refresh PRs:', e.message); }
 
   return {added: rowIdx < 0, prCount: rows.length};
 }
@@ -1169,7 +1169,7 @@ function addResultRow(payload) {
   const notes = payload.notes || '';
   const date = payload.date ? new Date(payload.date) : new Date();
   res.getRange(res.getLastRow()+1,1,1,8).setValues([[meet,eventName,swimmer,seedSerial||'',finalSerial,place,notes,date]]);
-  try { refreshPRs(); } catch(e) {}
+  try { refreshPRs(); } catch(e) { console.log('Failed to refresh PRs after adding result:', e.message); }
   return {ok:true};
 }
 function addResultSidebarHtml_() {
@@ -1634,11 +1634,11 @@ function clearAllFilters_(sheet) {
 function safeCreateFilter_(sheet, range, tag) {
   if (!autoFiltersEnabled_()) { 
     debugLog_('safeCreateFilter_', 'AUTO_FILTERS=false (meet day mode); cleared filters', {sheet: sheet.getName(), tag}); 
-    try { clearAllFilters_(sheet); } catch(_){} 
+    try { clearAllFilters_(sheet); } catch(e){ console.log('Failed to clear filters in meet day mode:', e.message); } 
     return; 
   }
-  try { clearAllFilters_(sheet); } catch(e) {}
-  try { const f = sheet.getFilter && sheet.getFilter(); if (f) f.remove(); } catch(e) {}
+  try { clearAllFilters_(sheet); } catch(e) { console.log('Failed to clear all filters:', e.message); }
+  try { const f = sheet.getFilter && sheet.getFilter(); if (f) f.remove(); } catch(e) { console.log('Failed to remove existing filter:', e.message); }
   try {
     range.createFilter();
     debugLog_('safeCreateFilter_', 'created', {sheet: sheet.getName(), tag});
@@ -1718,7 +1718,7 @@ function applyMeetDayModeEffects_(on) {
   // 3) Hide admin sheets on meet day; unhide when off
   toLock.forEach(n => {
     const sh = ss.getSheetByName(n); if (!sh) return;
-    try { sh.setHidden(on); } catch(_) {}
+    try { sh.setHidden(on); } catch(e) { console.log(`Failed to ${on ? 'hide' : 'unhide'} sheet ${n}:`, e.message); }
   });
 
   // 4) Make Coach Packet extra legible
