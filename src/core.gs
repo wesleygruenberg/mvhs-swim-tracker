@@ -43,6 +43,20 @@ const SHEET_NAMES = {
   SETTINGS: 'Settings'
 };
 
+const EVENT_TYPES = {
+  INDIVIDUAL: 'Individual',
+  RELAY: 'Relay'
+};
+
+const STROKES = {
+  FREESTYLE: 'Freestyle',
+  BACKSTROKE: 'Backstroke', 
+  BREASTSTROKE: 'Breaststroke',
+  BUTTERFLY: 'Butterfly',
+  IM: 'IM',
+  MEDLEY: 'Medley'
+};
+
 function libInfo() {
   const id = ScriptApp.getScriptId();
   SpreadsheetApp.getActive().toast(`CoachToolsCore ${LIB_VER}\nScript ID: ${id}`, 'Coach Tools', 6);
@@ -120,8 +134,8 @@ function refreshAll() {
  * ========================= */
 function ensureSettingsSheet() {
   const ss = SpreadsheetApp.getActive();
-  let set = ss.getSheetByName('Settings');
-  if (!set) set = ss.insertSheet('Settings');
+  let set = ss.getSheetByName(SHEET_NAMES.SETTINGS);
+  if (!set) set = ss.insertSheet(SHEET_NAMES.SETTINGS);
   if (set.getLastRow() < 2) {
     set.clear();
     const rows = [
@@ -145,7 +159,7 @@ function ensureSettingsSheet() {
   toast('Settings sheet verified.');
 }
 function readSettings_(ss) {
-  const set = ss.getSheetByName('Settings');
+  const set = ss.getSheetByName(SHEET_NAMES.SETTINGS);
   if (!set) return { seasonName:'Season', seasonYear:new Date().getFullYear(), dropGradYear:new Date().getFullYear()+1, maxInd:2, maxRel:2 };
   const getVal = (label) => { const f = set.createTextFinder(label).matchEntireCell(true).findNext(); return f ? set.getRange(f.getRow(),2).getValue() : null; };
   return {
@@ -369,7 +383,7 @@ function checkLineup() {
 
     const isJVEvent = /\(JV\)\s*$/.test(evName);
 
-    if (type === 'Individual') {
+    if (type === EVENT_TYPES.INDIVIDUAL) {
       const name = entry.getRange(r,8).getDisplayValue().trim();
       if (name) {
         indiv[name] = (indiv[name]||0) + 1;
@@ -377,7 +391,7 @@ function checkLineup() {
           jvMismatch.push([r, evName, name]);
         }
       }
-    } else if (type === 'Relay') {
+    } else if (type === EVENT_TYPES.RELAY) {
       const names = entry.getRange(r,9,1,4).getDisplayValues()[0].map(x=>x.trim()).filter(Boolean);
       const dups = findDuplicates(names);
       if (dups.length) dupViolations.push([r, evName, dups.join(', ')]);
@@ -390,7 +404,7 @@ function checkLineup() {
     }
   }
 
-  const header = [['Swimmer','Individual','Relay','Limit (Ind)','Limit (Rel)','Status']];
+  const header = [['Swimmer',EVENT_TYPES.INDIVIDUAL,EVENT_TYPES.RELAY,'Limit (Ind)','Limit (Rel)','Status']];
   const rows = [];
   for (const s of swimmers) {
     if (!s) continue;
@@ -398,8 +412,8 @@ function checkLineup() {
     const r = relay[s] || 0;
     const status = (i>maxInd || r>maxRel) ? 'OVER' : 'OK';
     rows.push([s,i,r,maxInd,maxRel,status]);
-    if (i>maxInd) assignViolations.push(['', '', s, 'Individual', i]);
-    if (r>maxRel) assignViolations.push(['', '', s, 'Relay', r]);
+    if (i>maxInd) assignViolations.push(['', '', s, EVENT_TYPES.INDIVIDUAL, i]);
+    if (r>maxRel) assignViolations.push(['', '', s, EVENT_TYPES.RELAY, r]);
   }
   rows.sort((a,b)=> a[0].localeCompare(b[0]));
 
@@ -661,7 +675,7 @@ function buildCoachPacket() {
     const type = entry.getRange(r,3).getDisplayValue();
     const heat = entry.getRange(r,6).getDisplayValue();
     const lane = entry.getRange(r,7).getDisplayValue();
-    if (type === 'Individual') {
+    if (type === EVENT_TYPES.INDIVIDUAL) {
       const n = entry.getRange(r,8).getDisplayValue();
       rows.push([ev, type, heat, lane, n || '—']);
     } else {
