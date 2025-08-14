@@ -29,6 +29,20 @@ const CONFIG = {
   BUFFER_EXTRA_ROWS: 200
 };
 
+const SHEET_NAMES = {
+  MEET_ENTRY: 'Meet Entry',
+  SWIMMERS: 'Swimmers',
+  MEETS: 'Meets',
+  EVENTS: 'Events',
+  RESULTS: 'Results',
+  MEET_EVENTS: 'Meet Events',
+  LINEUP_CHECK: 'Lineup Check',
+  PR_SUMMARY: 'PR Summary',
+  SWIMMER_DASHBOARD: 'Swimmer Dashboard',
+  COACH_PACKET: 'Coach Packet',
+  SETTINGS: 'Settings'
+};
+
 function libInfo() {
   const id = ScriptApp.getScriptId();
   SpreadsheetApp.getActive().toast(`CoachToolsCore ${LIB_VER}\nScript ID: ${id}`, 'Coach Tools', 6);
@@ -156,11 +170,11 @@ function applyLimitsFromSettings() {
  * ========================= */
 function setupValidations() {
   const ss = SpreadsheetApp.getActive();
-  const entry = mustSheet('Meet Entry');
-  const sw = mustSheet('Swimmers');
-  const me = mustSheet('Meets');
-  const ev = mustSheet('Events');
-  const results = mustSheet('Results');
+  const entry = mustSheet(SHEET_NAMES.MEET_ENTRY);
+  const sw = mustSheet(SHEET_NAMES.SWIMMERS);
+  const me = mustSheet(SHEET_NAMES.MEETS);
+  const ev = mustSheet(SHEET_NAMES.EVENTS);
+  const results = mustSheet(SHEET_NAMES.RESULTS);
 
   ensureSwimmersLevelColumn_();
 
@@ -202,9 +216,9 @@ function setupValidations() {
 
 function ensureMeetEventsTemplate() {
   const ss = SpreadsheetApp.getActive();
-  const me = mustSheet('Meets');
-  const ev = mustSheet('Events');
-  const out = ss.getSheetByName('Meet Events') || ss.insertSheet('Meet Events');
+  const me = mustSheet(SHEET_NAMES.MEETS);
+  const ev = mustSheet(SHEET_NAMES.EVENTS);
+  const out = ss.getSheetByName(SHEET_NAMES.MEET_EVENTS) || ss.insertSheet(SHEET_NAMES.MEET_EVENTS);
 
   if (out.getLastRow() < 1) {
     out.getRange(1,1,1,4).setValues([['Meet','Event','Active?','Notes']]).setFontWeight('bold');
@@ -287,8 +301,8 @@ function setPresetsJVForMeet_(meetName, hasJV) {
 
 function applyMeetPresets() {
   const ss = SpreadsheetApp.getActive();
-  const entry = mustSheet('Meet Entry');
-  const presets = mustSheet('Meet Events');
+  const entry = mustSheet(SHEET_NAMES.MEET_ENTRY);
+  const presets = mustSheet(SHEET_NAMES.MEET_EVENTS);
 
   ensureMeetsHasJVColumn();
 
@@ -320,9 +334,9 @@ function applyMeetPresets() {
 
 function checkLineup() {
   const ss = SpreadsheetApp.getActive();
-  const entry = mustSheet('Meet Entry');
-  const sw = mustSheet('Swimmers');
-  const out = ss.getSheetByName('Lineup Check') || ss.insertSheet('Lineup Check');
+  const entry = mustSheet(SHEET_NAMES.MEET_ENTRY);
+  const sw = mustSheet(SHEET_NAMES.SWIMMERS);
+  const out = ss.getSheetByName(SHEET_NAMES.LINEUP_CHECK) || ss.insertSheet(SHEET_NAMES.LINEUP_CHECK);
   out.clear();
 
   const maxInd = Number(entry.getRange('B2').getValue() || 2);
@@ -429,7 +443,7 @@ function checkLineup() {
 
 function createSnapshot() {
   const ss = SpreadsheetApp.getActive();
-  const src = mustSheet('Meet Entry');
+  const src = mustSheet(SHEET_NAMES.MEET_ENTRY);
   const meet = src.getRange('B1').getDisplayValue() || 'Unspecified Meet';
   const stamp = Utilities.formatDate(new Date(), ss.getSpreadsheetTimeZone(), "yyyy-MM-dd HHmm");
   const name = `Lineup — ${meet} — ${stamp}`;
@@ -566,8 +580,8 @@ function refreshPRs() {
 }
 function createPRSummary() {
   const ss = SpreadsheetApp.getActive();
-  const results = mustSheet('Results');
-  const out = ss.getSheetByName('PR Summary') || ss.insertSheet('PR Summary');
+  const results = mustSheet(SHEET_NAMES.RESULTS);
+  const out = ss.getSheetByName(SHEET_NAMES.PR_SUMMARY) || ss.insertSheet(SHEET_NAMES.PR_SUMMARY);
   out.clear();
   const last = results.getLastRow();
   if (last < 2) { out.getRange(1,1).setValue('No results yet.'); return; }
@@ -935,11 +949,11 @@ function resetDataInCopy_(ss, opts) {
 
 /** Parametric helpers for copies */
 function setupValidationsFor_(ss) {
-  const entry = _mustSheet(ss,'Meet Entry');
-  const sw = _mustSheet(ss,'Swimmers');
-  const me = _mustSheet(ss,'Meets');
-  const ev = _mustSheet(ss,'Events');
-  const results = _mustSheet(ss,'Results');
+  const entry = _mustSheet(ss,SHEET_NAMES.MEET_ENTRY);
+  const sw = _mustSheet(ss,SHEET_NAMES.SWIMMERS);
+  const me = _mustSheet(ss,SHEET_NAMES.MEETS);
+  const ev = _mustSheet(ss,SHEET_NAMES.EVENTS);
+  const results = _mustSheet(ss,SHEET_NAMES.RESULTS);
 
   ss.setNamedRange('SwimmerNames', sw.getRange('A2:A'));
   ss.setNamedRange('MeetNames',    me.getRange('A2:A'));
