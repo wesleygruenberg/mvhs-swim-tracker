@@ -10,7 +10,7 @@ function refreshAll() {
   CoachToolsCore.refreshAll();
 }
 function aboutCoachTools() {
-  CoachToolsCore.libInfo();
+  CoachToolsCore.aboutCoachTools();
 }
 
 function openBulkImportSidebar() {
@@ -72,9 +72,6 @@ function cloneNewSeasonCarryForward() {
 function cloneCleanBaseline() {
   CoachToolsCore.cloneCleanBaseline();
 }
-function debugDumpFilters() {
-  CoachToolsCore.debugDumpFilters();
-}
 function ensureSettingsSheet() {
   CoachToolsCore.ensureSettingsSheet();
 }
@@ -87,12 +84,12 @@ function ensureMeetsHasJVColumn() {
 function generateRosterRankingsFromCSV() {
   CoachToolsCore.generateRosterRankingsFromCSV();
 }
-function testRosterRankingsWithSampleData() {
-  CoachToolsCore.testRosterRankingsWithSampleData();
-}
 function createRawTryoutResultsSheet() {
   CoachToolsCore.createRawTryoutResultsSheet();
 }
 function generateTryoutRankingsFromSheet() {
   CoachToolsCore.generateTryoutRankingsFromSheet();
+}
+function generateVarsityJVSquads() {
+  CoachToolsCore.generateVarsityJVSquads();
 }
