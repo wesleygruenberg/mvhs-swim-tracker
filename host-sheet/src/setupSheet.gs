@@ -6,43 +6,93 @@ function onOpen() {
 }
 
 // 1:1 wrappers to the library (keep these small and boring)
-function refreshAll(){ CoachToolsCore.refreshAll(); }
-function aboutCoachTools(){ CoachToolsCore.libInfo(); }
+function refreshAll() {
+  CoachToolsCore.refreshAll();
+}
+function aboutCoachTools() {
+  CoachToolsCore.libInfo();
+}
 
-function openBulkImportSidebar(){ 
+function openBulkImportSidebar() {
   const html = CoachToolsCore.buildBulkImportSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function openAddResultSidebar(){ 
+function openAddResultSidebar() {
   const html = CoachToolsCore.buildAddResultSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function openAddSwimmerSidebar(){ CoachToolsCore.openAddSwimmerSidebar(); }
-function openAddMeetSidebar(){ 
+function openAddSwimmerSidebar() {
+  CoachToolsCore.openAddSwimmerSidebar();
+}
+function openAddMeetSidebar() {
   const html = CoachToolsCore.buildAddMeetSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
 }
-function openAddEventSidebar(){ 
+function openAddEventSidebar() {
   const html = CoachToolsCore.buildAddEventSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
 }
 
-function refreshPRs(){ CoachToolsCore.refreshPRs(); }
-function checkLineup(){ CoachToolsCore.checkLineup(); }
-function buildCoachPacket(){ CoachToolsCore.buildCoachPacket(); }
-function createSnapshot(){ CoachToolsCore.createSnapshot(); }
-function applyMeetPresets(){ CoachToolsCore.applyMeetPresets(); }
-function ensureMeetPresetsTemplate(){ CoachToolsCore.ensureMeetEventsTemplate(); }
-function setupValidations(){ CoachToolsCore.setupValidations(); }
-function enableJVSupport(){ CoachToolsCore.enableJVSupport(); }
-function adminClearSampleData(){ CoachToolsCore.adminClearSampleData(); }
-function generateSampleTeam50(){ CoachToolsCore.generateSampleTeam50(); }
-function cloneMakeCleanCopy(){ CoachToolsCore.cloneMakeCleanCopy(); }
-function cloneNewSeasonCarryForward(){ CoachToolsCore.cloneNewSeasonCarryForward(); }
-function cloneCleanBaseline(){ CoachToolsCore.cloneCleanBaseline(); }
-function debugDumpFilters(){ CoachToolsCore.debugDumpFilters(); }
-function ensureSettingsSheet(){ CoachToolsCore.ensureSettingsSheet(); }
-function applyLimitsFromSettings(){ CoachToolsCore.applyLimitsFromSettings(); }
-function ensureMeetsHasJVColumn(){ CoachToolsCore.ensureMeetsHasJVColumn(); }
-function generateRosterRankingsFromCSV(){ CoachToolsCore.generateRosterRankingsFromCSV(); }
-function testRosterRankingsWithSampleData(){ CoachToolsCore.testRosterRankingsWithSampleData(); }
+function refreshPRs() {
+  CoachToolsCore.refreshPRs();
+}
+function checkLineup() {
+  CoachToolsCore.checkLineup();
+}
+function buildCoachPacket() {
+  CoachToolsCore.buildCoachPacket();
+}
+function createSnapshot() {
+  CoachToolsCore.createSnapshot();
+}
+function applyMeetPresets() {
+  CoachToolsCore.applyMeetPresets();
+}
+function ensureMeetPresetsTemplate() {
+  CoachToolsCore.ensureMeetEventsTemplate();
+}
+function setupValidations() {
+  CoachToolsCore.setupValidations();
+}
+function enableJVSupport() {
+  CoachToolsCore.enableJVSupport();
+}
+function adminClearSampleData() {
+  CoachToolsCore.adminClearSampleData();
+}
+function generateSampleTeam50() {
+  CoachToolsCore.generateSampleTeam50();
+}
+function cloneMakeCleanCopy() {
+  CoachToolsCore.cloneMakeCleanCopy();
+}
+function cloneNewSeasonCarryForward() {
+  CoachToolsCore.cloneNewSeasonCarryForward();
+}
+function cloneCleanBaseline() {
+  CoachToolsCore.cloneCleanBaseline();
+}
+function debugDumpFilters() {
+  CoachToolsCore.debugDumpFilters();
+}
+function ensureSettingsSheet() {
+  CoachToolsCore.ensureSettingsSheet();
+}
+function applyLimitsFromSettings() {
+  CoachToolsCore.applyLimitsFromSettings();
+}
+function ensureMeetsHasJVColumn() {
+  CoachToolsCore.ensureMeetsHasJVColumn();
+}
+function generateRosterRankingsFromCSV() {
+  CoachToolsCore.generateRosterRankingsFromCSV();
+}
+function testRosterRankingsWithSampleData() {
+  CoachToolsCore.testRosterRankingsWithSampleData();
+}
+function createRawTryoutResultsSheet() {
+  CoachToolsCore.createRawTryoutResultsSheet();
+}
+function generateTryoutRankingsFromSheet() {
+  CoachToolsCore.generateTryoutRankingsFromSheet();
+}

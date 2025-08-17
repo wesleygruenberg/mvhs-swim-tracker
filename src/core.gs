@@ -67,15 +67,376 @@ Features:
 • Swimmer and event management 
 • Results tracking with PR analysis
 • Roster ranking analysis from CSV data
+• Raw tryout data import from CSV
 • JV/Varsity support
 • Bulk import capabilities
 • Snapshot and reporting tools
 
 New in this version:
 • CSV Roster Rankings: Generate male/female team rankings with individual event ranks, best ranks, and average rankings
+• Raw Tryout Results: Import CSV data directly into a formatted Google Sheet for easy viewing and analysis
+• Tryout Rankings: Generate rankings directly from existing Tryouts sheet data (non-asterisked events only)
 
-Use "Coach Tools > Roster > Generate Roster Rankings from CSV" to analyze your team's performance data.`,
+Use "Coach Tools > Roster > Generate Roster Rankings from CSV" to analyze your team's performance data.
+Use "Coach Tools > Roster > Create Raw Tryout Results Sheet" to import raw CSV data.
+Use "Coach Tools > Roster > Generate Tryout Rankings from Sheet" to rank swimmers from existing Tryouts data.`,
     ui.ButtonSet.OK
+  );
+}
+
+/**
+ * Creates or updates the "Raw Tryout Results" sheet with CSV data
+ */
+function createRawTryoutResultsSheet() {
+  const csvFiles = DriveApp.getFilesByName('MVHS_Times_2025.csv');
+
+  if (!csvFiles.hasNext()) {
+    toast(
+      'CSV file "MVHS_Times_2025.csv" not found in your Google Drive. Please upload it first.'
+    );
+    return;
+  }
+
+  const csvFile = csvFiles.next();
+  const csvContent = csvFile.getBlob().getDataAsString();
+
+  try {
+    importRawTryoutData_(csvContent);
+    toast('Raw Tryout Results sheet has been created/updated successfully!');
+  } catch (e) {
+    toast('Error creating Raw Tryout Results sheet: ' + e.message);
+    console.error('Import error:', e);
+  }
+}
+
+/**
+ * Generates tryout rankings from the existing Tryouts sheet
+ */
+function generateTryoutRankingsFromSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  try {
+    const tryoutsSheet = ss.getSheetByName('Tryouts');
+    if (!tryoutsSheet) {
+      toast(
+        'Error: "Tryouts" sheet not found. Please make sure you have a sheet named "Tryouts" with your tryout data.'
+      );
+      return;
+    }
+
+    const data = tryoutsSheet.getDataRange().getValues();
+    if (data.length < 2) {
+      toast('Error: No data found in Tryouts sheet.');
+      return;
+    }
+
+    processTryoutRankings_(data);
+    toast(
+      'Tryout rankings generated successfully! Check the "Tryout Rankings" sheet.'
+    );
+  } catch (e) {
+    toast('Error generating tryout rankings: ' + e.message);
+    console.error('Tryout rankings error:', e);
+  }
+}
+
+/**
+ * Helper function to import CSV data into the Raw Tryout Results sheet
+ * @param {string} csvContent - The CSV content to import
+ */
+function importRawTryoutData_(csvContent) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Parse CSV data
+  const csvData = Utilities.parseCsv(csvContent);
+
+  if (csvData.length === 0) {
+    throw new Error('CSV file appears to be empty');
+  }
+
+  // Check if sheet exists, create if not
+  let sheet;
+  try {
+    sheet = ss.getSheetByName('Raw Tryout Results');
+  } catch (e) {
+    sheet = ss.insertSheet('Raw Tryout Results');
+  }
+
+  // Clear existing content
+  sheet.clear();
+
+  // Add all CSV data to sheet
+  const numRows = csvData.length;
+  const numCols = csvData[0].length;
+
+  sheet.getRange(1, 1, numRows, numCols).setValues(csvData);
+
+  // Format header row
+  if (numRows > 0) {
+    sheet
+      .getRange(1, 1, 1, numCols)
+      .setFontWeight('bold')
+      .setBackground('#e6f3ff');
+  }
+
+  // Auto-resize columns
+  for (let i = 1; i <= numCols; i++) {
+    sheet.autoResizeColumn(i);
+  }
+
+  // Freeze header row
+  if (numRows > 1) {
+    sheet.setFrozenRows(1);
+  }
+
+  console.log(
+    `Imported ${numRows} rows and ${numCols} columns to Raw Tryout Results sheet`
+  );
+}
+
+/**
+ * Helper function to process tryout rankings from sheet data
+ * @param {Array} data - The sheet data including headers
+ */
+function processTryoutRankings_(data) {
+  const headers = data[0];
+  const swimmers = data.slice(1);
+
+  // Find non-asterisked event columns (exclude Name and Gender columns)
+  const eventColumns = [];
+  for (let i = 2; i < headers.length; i++) {
+    const header = headers[i].toString().trim();
+    if (header && !header.startsWith('*')) {
+      eventColumns.push({
+        index: i,
+        name: header,
+      });
+    }
+  }
+
+  if (eventColumns.length === 0) {
+    throw new Error('No valid event columns found (non-asterisked events)');
+  }
+
+  // Separate swimmers by gender and calculate rankings
+  const maleSwimmers = swimmers.filter(
+    row => row[1] && row[1].toString().toUpperCase() === 'M'
+  );
+  const femaleSwimmers = swimmers.filter(
+    row => row[1] && row[1].toString().toUpperCase() === 'F'
+  );
+
+  // Process each gender group
+  const maleRankings = calculateTryoutRankings_(
+    maleSwimmers,
+    eventColumns,
+    'Male'
+  );
+  const femaleRankings = calculateTryoutRankings_(
+    femaleSwimmers,
+    eventColumns,
+    'Female'
+  );
+
+  // Create the rankings sheet
+  createTryoutRankingsSheet_(maleRankings, femaleRankings, eventColumns);
+}
+
+/**
+ * Calculate rankings for a group of swimmers
+ * @param {Array} swimmers - Array of swimmer data rows
+ * @param {Array} eventColumns - Array of event column info
+ * @param {string} gender - Gender label for logging
+ * @returns {Array} Array of swimmer ranking objects
+ */
+function calculateTryoutRankings_(swimmers, eventColumns, gender) {
+  const rankings = [];
+
+  // For each event, sort swimmers by time and assign ranks
+  const eventRankings = {};
+
+  eventColumns.forEach(event => {
+    const validTimes = [];
+
+    swimmers.forEach((swimmer, swimmerIndex) => {
+      const timeValue = swimmer[event.index];
+      if (timeValue && timeValue.toString().trim()) {
+        const seconds = parseTimeToSeconds_(timeValue.toString().trim());
+        if (seconds > 0) {
+          validTimes.push({
+            swimmerIndex: swimmerIndex,
+            swimmer: swimmer,
+            seconds: seconds,
+            timeString: timeValue.toString().trim(),
+          });
+        }
+      }
+    });
+
+    // Sort by time (fastest first)
+    validTimes.sort((a, b) => a.seconds - b.seconds);
+
+    // Assign ranks
+    eventRankings[event.name] = {};
+    validTimes.forEach((entry, rank) => {
+      eventRankings[event.name][entry.swimmerIndex] = rank + 1;
+    });
+  });
+
+  // Calculate swimmer summaries
+  swimmers.forEach((swimmer, swimmerIndex) => {
+    const name = swimmer[0] ? swimmer[0].toString().trim() : '';
+    if (!name) return;
+
+    const swimmerRanks = [];
+    let bestRank = Infinity;
+    let bestEvent = '';
+
+    eventColumns.forEach(event => {
+      const rank = eventRankings[event.name][swimmerIndex];
+      if (rank) {
+        swimmerRanks.push(rank);
+        if (rank < bestRank) {
+          bestRank = rank;
+          bestEvent = event.name;
+        }
+      }
+    });
+
+    const avgRank =
+      swimmerRanks.length > 0
+        ? Math.round(
+            (swimmerRanks.reduce((sum, rank) => sum + rank, 0) /
+              swimmerRanks.length) *
+              100
+          ) / 100
+        : null;
+
+    const rankingData = {
+      name: name,
+      gender: gender,
+      eventRanks: {},
+      eventTimes: {},
+      bestRank: bestRank === Infinity ? null : bestRank,
+      bestEvent: bestEvent || null,
+      avgRank: avgRank,
+      eventsParticipated: swimmerRanks.length,
+    };
+
+    // Store individual event ranks and times
+    eventColumns.forEach(event => {
+      rankingData.eventRanks[event.name] =
+        eventRankings[event.name][swimmerIndex] || null;
+      const timeValue = swimmer[event.index];
+      rankingData.eventTimes[event.name] =
+        (timeValue && timeValue.toString().trim()) || null;
+    });
+
+    rankings.push(rankingData);
+  });
+
+  // Sort by average rank (best average first)
+  rankings.sort((a, b) => {
+    if (a.avgRank === null && b.avgRank === null) return 0;
+    if (a.avgRank === null) return 1;
+    if (b.avgRank === null) return -1;
+    return a.avgRank - b.avgRank;
+  });
+
+  return rankings;
+}
+
+/**
+ * Create the Tryout Rankings sheet with male and female rankings
+ * @param {Array} maleRankings - Male swimmer rankings
+ * @param {Array} femaleRankings - Female swimmer rankings
+ * @param {Array} eventColumns - Event column information
+ */
+function createTryoutRankingsSheet_(
+  maleRankings,
+  femaleRankings,
+  eventColumns
+) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  // Create or get the rankings sheet
+  let sheet;
+  try {
+    sheet = ss.getSheetByName('Tryout Rankings');
+    sheet.clear();
+  } catch (e) {
+    sheet = ss.insertSheet('Tryout Rankings');
+  }
+
+  let currentRow = 1;
+
+  // Helper function to write rankings for a gender
+  function writeGenderRankings(rankings, genderLabel) {
+    if (rankings.length === 0) return;
+
+    // Gender header
+    sheet.getRange(currentRow, 1).setValue(`${genderLabel} Tryout Rankings`);
+    sheet
+      .getRange(currentRow, 1, 1, 5 + eventColumns.length)
+      .setBackground('#4a90e2')
+      .setFontColor('white')
+      .setFontWeight('bold');
+    currentRow++;
+
+    // Column headers
+    const headers = ['Rank', 'Name', 'Avg Rank', 'Best Rank', 'Best Event'];
+    eventColumns.forEach(event => headers.push(event.name + ' (Rank)'));
+
+    sheet.getRange(currentRow, 1, 1, headers.length).setValues([headers]);
+    sheet
+      .getRange(currentRow, 1, 1, headers.length)
+      .setFontWeight('bold')
+      .setBackground('#e6f3ff');
+    currentRow++;
+
+    // Data rows
+    rankings.forEach((swimmer, index) => {
+      const row = [
+        index + 1, // Overall rank
+        swimmer.name,
+        swimmer.avgRank || 'N/A',
+        swimmer.bestRank || 'N/A',
+        swimmer.bestEvent || 'N/A',
+      ];
+
+      // Add event ranks
+      eventColumns.forEach(event => {
+        const rank = swimmer.eventRanks[event.name];
+        const time = swimmer.eventTimes[event.name];
+        if (rank && time) {
+          row.push(`${rank} (${time})`);
+        } else {
+          row.push('');
+        }
+      });
+
+      sheet.getRange(currentRow, 1, 1, row.length).setValues([row]);
+      currentRow++;
+    });
+
+    currentRow++; // Space between sections
+  }
+
+  // Write both gender sections
+  writeGenderRankings(maleRankings, 'Male');
+  writeGenderRankings(femaleRankings, 'Female');
+
+  // Auto-resize columns
+  for (let i = 1; i <= 5 + eventColumns.length; i++) {
+    sheet.autoResizeColumn(i);
+  }
+
+  // Freeze header rows and name column
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+
+  console.log(
+    `Created Tryout Rankings sheet with ${maleRankings.length} male and ${femaleRankings.length} female swimmers`
   );
 }
 
@@ -110,6 +471,14 @@ function setupCoachToolsMenu() {
         .addItem('Add Meet (sidebar)', 'openAddMeetSidebar')
         .addItem('Add Event (sidebar)', 'openAddEventSidebar')
         .addSeparator()
+        .addItem(
+          '📄 Create Raw Tryout Results Sheet',
+          'createRawTryoutResultsSheet'
+        )
+        .addItem(
+          '🏊 Generate Tryout Rankings from Sheet',
+          'generateTryoutRankingsFromSheet'
+        )
         .addItem('🧪 Test Roster Rankings', 'testRosterRankingsWithSampleData')
     )
     .addSubMenu(
@@ -151,6 +520,24 @@ function setupCoachToolsMenu() {
     .addItem('Build Coach Packet (print view)', 'buildCoachPacket')
     .addItem('Debug: Dump Filter State', 'debugDumpFilters')
     .addToUi();
+}
+
+// Sidebar functions for host sheet menu items
+function openBulkImportSidebar() {
+  const html = buildBulkImportSidebar();
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+function openAddResultSidebar() {
+  const html = buildAddResultSidebar();
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+function openAddMeetSidebar() {
+  const html = buildAddMeetSidebar();
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+function openAddEventSidebar() {
+  const html = buildAddEventSidebar();
+  SpreadsheetApp.getUi().showSidebar(html);
 }
 
 /** ---------- Refresh All ---------- */
