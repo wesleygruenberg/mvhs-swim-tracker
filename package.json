@@ -1,0 +1,34 @@
+{
+  "name": "mvhs-swim-tracker",
+  "version": "1.0.0",
+  "description": "Mountain View High School Swim Team Tracker - Google Apps Script application for managing swim team data and statistics",
+  "main": "src/core.gs",
+  "scripts": {
+    "dev": "clasp push --watch",
+    "push": "clasp push",
+    "pull": "clasp pull",
+    "deploy": "clasp deploy",
+    "open": "clasp open-script",
+    "logs": "clasp tail-logs",
+    "format": "prettier --write src/**/*.{js,ts,gs}",
+    "type-check": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wesleygruenberg/mvhs-swim-tracker.git"
+  },
+  "keywords": [
+    "google-apps-script",
+    "swim-tracker",
+    "sports-management",
+    "google-sheets"
+  ],
+  "author": "Wesley Gruenberg",
+  "license": "MIT",
+  "devDependencies": {
+    "@google/clasp": "^2.4.2",
+    "@types/google-apps-script": "^1.0.83",
+    "prettier": "^3.0.0",
+    "typescript": "^5.0.0"
+  }
+}

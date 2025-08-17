@@ -1,0 +1,13 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Google Apps Script",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/src/core.gs",
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}

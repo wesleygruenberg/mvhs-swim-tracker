@@ -1,0 +1,15 @@
+{
+  "timeZone": "America/Los_Angeles",
+  "dependencies": {
+    "libraries": [
+      {
+        "userSymbol": "CoachToolsCore",
+        "version": "0",
+        "libraryId": "10kNnzBnx1WeDQ_ovQzVUqd8Xg42IT1IZ2m2z-g9VNjGFk-0jJ5Wg3sdL",
+        "developmentMode": true
+      }
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8"
+}
