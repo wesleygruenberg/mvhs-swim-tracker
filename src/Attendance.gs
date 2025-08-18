@@ -15,6 +15,7 @@ const ATTEND_HEADERS = {
   date: 'Date',
   name: 'Name',
   present: 'Present',
+  excused: 'Excused',
   level: 'Level',
   gender: 'Gender',
   ts: 'Timestamp',
@@ -88,22 +89,23 @@ function getAttendanceForDate(yyyy_mm_dd) {
   const header = data.shift();
   const idx = indexMap(header);
 
-  const presentByName = new Map();
+  const attendanceByName = new Map();
   data.forEach(r => {
     const d = toDateString(val(r, idx, ATTEND_HEADERS.date));
     if (d !== yyyy_mm_dd) return;
     const name = String(val(r, idx, ATTEND_HEADERS.name) ?? '').trim();
     if (!name) return;
     const present = toBool(val(r, idx, ATTEND_HEADERS.present));
-    presentByName.set(name, present);
+    const excused = toBool(val(r, idx, ATTEND_HEADERS.excused));
+    attendanceByName.set(name, { present, excused });
   });
 
-  return Object.fromEntries(presentByName); // { [name]: true/false }
+  return Object.fromEntries(attendanceByName); // { [name]: {present: true/false, excused: true/false} }
 }
 
 function upsertAttendance(
   yyyy_mm_dd,
-  attendanceArray /* [{name, present, level, gender}] */
+  attendanceArray /* [{name, present, excused, level, gender}] */
 ) {
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.attendance);
@@ -137,6 +139,10 @@ function upsertAttendance(
         values: [[!!it.present]],
       });
       writes.push({
+        range: sh.getRange(row, idx[ATTEND_HEADERS.excused] + 1, 1, 1),
+        values: [[!!it.excused]],
+      });
+      writes.push({
         range: sh.getRange(row, idx[ATTEND_HEADERS.ts] + 1, 1, 1),
         values: [[nowIso]],
       });
@@ -159,6 +165,7 @@ function upsertAttendance(
       rowVals[idx[ATTEND_HEADERS.date]] = yyyy_mm_dd;
       rowVals[idx[ATTEND_HEADERS.name]] = String(it.name);
       rowVals[idx[ATTEND_HEADERS.present]] = !!it.present;
+      rowVals[idx[ATTEND_HEADERS.excused]] = !!it.excused;
       if (idx[ATTEND_HEADERS.level] !== undefined)
         rowVals[idx[ATTEND_HEADERS.level]] = it.level ?? '';
       if (idx[ATTEND_HEADERS.gender] !== undefined)
@@ -197,6 +204,7 @@ function ensureAttendanceHeader(sh) {
       ATTEND_HEADERS.date,
       ATTEND_HEADERS.name,
       ATTEND_HEADERS.present,
+      ATTEND_HEADERS.excused,
       ATTEND_HEADERS.level,
       ATTEND_HEADERS.gender,
       ATTEND_HEADERS.ts,
@@ -210,6 +218,7 @@ function ensureAttendanceHeader(sh) {
     ATTEND_HEADERS.date,
     ATTEND_HEADERS.name,
     ATTEND_HEADERS.present,
+    ATTEND_HEADERS.excused,
     ATTEND_HEADERS.level,
     ATTEND_HEADERS.gender,
     ATTEND_HEADERS.ts,
@@ -255,20 +264,21 @@ function toDateString(v) {
 // Exposed to client
 function api_getRosterAndAttendance(yyyy_mm_dd) {
   const roster = getRosterSorted();
-  const presentByName = getAttendanceForDate(yyyy_mm_dd);
-  // Merge present flags (default false if not set)
+  const attendanceByName = getAttendanceForDate(yyyy_mm_dd);
+  // Merge attendance flags (default false if not set)
   const merged = roster.map(r => ({
     name: r.name,
     level: r.level,
     gender: r.gender,
-    present: !!presentByName[r.name],
+    present: !!(attendanceByName[r.name]?.present),
+    excused: !!(attendanceByName[r.name]?.excused),
   }));
   return { date: yyyy_mm_dd, roster: merged };
 }
 
 function api_saveAttendance(
   yyyy_mm_dd,
-  attendanceList /* [{name, present, level, gender}] */
+  attendanceList /* [{name, present, excused, level, gender}] */
 ) {
   return upsertAttendance(yyyy_mm_dd, attendanceList);
 }

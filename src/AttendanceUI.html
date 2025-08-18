@@ -78,6 +78,38 @@
         width: 28px; /* Larger checkboxes */
         height: 28px;
       }
+      .attendance-status {
+        display: flex;
+        gap: 4px;
+      }
+      .status-btn {
+        width: 32px;
+        height: 32px;
+        border: 2px solid #ddd;
+        border-radius: 6px;
+        background: #fff;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+      }
+      .status-btn.active {
+        border-color: #333;
+        color: #fff;
+      }
+      .status-btn.present.active {
+        background: #28a745;
+      }
+      .status-btn.excused.active {
+        background: #ffc107;
+        color: #333;
+      }
+      .status-btn.absent.active {
+        background: #dc3545;
+      }
       .toast {
         position: fixed;
         left: 50%;

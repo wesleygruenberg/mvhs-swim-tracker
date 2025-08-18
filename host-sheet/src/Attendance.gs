@@ -15,102 +15,69 @@ const ATTEND_HEADERS = {
   date: 'Date',
   name: 'Name',
   present: 'Present',
+  excused: 'Excused',
   level: 'Level',
   gender: 'Gender',
   ts: 'Timestamp',
-  updatedBy: 'UpdatedBy',
-  source: 'Source',
 };
 
 function getRosterSorted() {
-  try {
-    const ss = SpreadsheetApp.getActive();
-    const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.roster);
-    if (!sh) {
-      console.error('Sheet not found:', SHEET_NAMES_ATTENDANCE.roster);
-      throw new Error('Missing Swimmers sheet. Please create a sheet named "Swimmers" with columns: Name, Gender, Level');
+  const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.roster);
+  if (!sh) throw new Error('Missing Swimmers sheet');
+
+  const values = sh.getDataRange().getValues();
+  const header = values.shift();
+  const idx = indexMap(header);
+
+  const rows = values
+    .map(r => ({
+      name: val(r, idx, ROSTER_HEADERS.name),
+      gradYear: val(r, idx, ROSTER_HEADERS.gradYear),
+      gender: val(r, idx, ROSTER_HEADERS.gender),
+      level: val(r, idx, ROSTER_HEADERS.level),
+      notes: val(r, idx, ROSTER_HEADERS.notes),
+    }))
+    .filter(x => x.name && x.name.trim() !== ''); // Only include rows with names
+
+  // Normalize gender and level values
+  rows.forEach(r => {
+    // Normalize gender (M/Male -> M, F/Female -> F)
+    const genderStr = String(r.gender || '').toUpperCase().trim();
+    if (genderStr === 'MALE' || genderStr === 'M') {
+      r.gender = 'M';
+    } else if (genderStr === 'FEMALE' || genderStr === 'F') {
+      r.gender = 'F';
     }
 
-    console.log('Found sheet:', SHEET_NAMES_ATTENDANCE.roster);
-    
-    const dataRange = sh.getDataRange();
-    if (!dataRange || dataRange.getNumRows() < 2) {
-      console.log('No data in sheet or only header row');
-      return []; // Return empty array if no data
+    // Normalize level (V -> Varsity, JV -> JV)
+    const levelStr = String(r.level || '').toUpperCase().trim();
+    if (levelStr === 'V' || levelStr === 'VARSITY') {
+      r.level = 'Varsity';
+    } else if (levelStr === 'JV') {
+      r.level = 'JV';
     }
-    
-    const values = dataRange.getValues();
-    const header = values.shift();
-    const idx = indexMap(header);
-    
-    console.log('Sheet headers:', header);
-    console.log('Header index map:', idx);
+  });
 
-    const rows = values
-      .map((r, rowIndex) => {
-        try {
-          return {
-            name: val(r, idx, ROSTER_HEADERS.name),
-            gradYear: val(r, idx, ROSTER_HEADERS.gradYear),
-            gender: val(r, idx, ROSTER_HEADERS.gender),
-            level: val(r, idx, ROSTER_HEADERS.level),
-            notes: val(r, idx, ROSTER_HEADERS.notes),
-          };
-        } catch (error) {
-          console.warn('Error processing row', rowIndex + 2, ':', error, 'Row data:', r);
-          return null;
-        }
-      })
-      .filter(x => x && x.name && x.name.trim() !== ''); // Only include valid rows with names
+  // Filter out any with invalid gender/level after normalization
+  const validRows = rows.filter(x => 
+    (x.gender === 'M' || x.gender === 'F') && 
+    (x.level === 'Varsity' || x.level === 'JV')
+  );
 
-    console.log('Processed rows count:', rows.length);
+  // Sorting: Varsity → JV; M → F; Name asc
+  const levelOrder = { Varsity: 0, JV: 1 };
+  const genderOrder = { M: 0, F: 1 };
 
-    // Normalize gender and level values
-    rows.forEach(r => {
-      // Normalize gender (M/Male -> M, F/Female -> F)
-      const genderStr = String(r.gender || '').toUpperCase().trim();
-      if (genderStr === 'MALE' || genderStr === 'M') {
-        r.gender = 'M';
-      } else if (genderStr === 'FEMALE' || genderStr === 'F') {
-        r.gender = 'F';
-      }
+  validRows.sort((a, b) => {
+    const lv = (levelOrder[a.level] ?? 99) - (levelOrder[b.level] ?? 99);
+    if (lv !== 0) return lv;
+    const gv = (genderOrder[a.gender] ?? 99) - (genderOrder[b.gender] ?? 99);
+    if (gv !== 0) return gv;
+    return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+  });
 
-      // Normalize level (V -> Varsity, JV -> JV)
-      const levelStr = String(r.level || '').toUpperCase().trim();
-      if (levelStr === 'V' || levelStr === 'VARSITY') {
-        r.level = 'Varsity';
-      } else if (levelStr === 'JV') {
-        r.level = 'JV';
-      }
-    });
-
-    // Filter out any with invalid gender/level after normalization
-    const validRows = rows.filter(x => 
-      (x.gender === 'M' || x.gender === 'F') && 
-      (x.level === 'Varsity' || x.level === 'JV')
-    );
-
-    console.log('Valid rows after filtering:', validRows.length);
-
-    // Sorting: Varsity → JV; M → F; Name asc
-    const levelOrder = { Varsity: 0, JV: 1 };
-    const genderOrder = { M: 0, F: 1 };
-
-    validRows.sort((a, b) => {
-      const lv = (levelOrder[a.level] ?? 99) - (levelOrder[b.level] ?? 99);
-      if (lv !== 0) return lv;
-      const gv = (genderOrder[a.gender] ?? 99) - (genderOrder[b.gender] ?? 99);
-      if (gv !== 0) return gv;
-      return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
-    });
-
-    console.log('Final sorted roster:', validRows.length, 'swimmers');
-    return validRows;
-    
-  } catch (error) {
-    console.error('Error in getRosterSorted:', error);
-    throw new Error('Failed to load roster from Swimmers sheet: ' + error.message);
-  }
+  return validRows;
 }
 
 function getAttendanceForDate(yyyy_mm_dd) {
@@ -122,23 +89,23 @@ function getAttendanceForDate(yyyy_mm_dd) {
   const header = data.shift();
   const idx = indexMap(header);
 
-  const presentByName = new Map();
+  const attendanceByName = new Map();
   data.forEach(r => {
     const d = toDateString(val(r, idx, ATTEND_HEADERS.date));
     if (d !== yyyy_mm_dd) return;
     const name = String(val(r, idx, ATTEND_HEADERS.name) ?? '').trim();
     if (!name) return;
     const present = toBool(val(r, idx, ATTEND_HEADERS.present));
-    presentByName.set(name, present);
+    const excused = toBool(val(r, idx, ATTEND_HEADERS.excused));
+    attendanceByName.set(name, { present, excused });
   });
 
-  return Object.fromEntries(presentByName); // { [name]: true/false }
+  return Object.fromEntries(attendanceByName); // { [name]: {present: true/false, excused: true/false} }
 }
 
 function upsertAttendance(
   yyyy_mm_dd,
-  attendanceArray, /* [{name, present, level, gender}] */
-  clientUserAgent /* optional: user agent string for source detection */
+  attendanceArray /* [{name, present, excused, level, gender}] */
 ) {
   const ss = SpreadsheetApp.getActive();
   const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.attendance);
@@ -159,9 +126,6 @@ function upsertAttendance(
     if (d && name) rowIndexByKey.set(keyOf(d, name), i + 2); // +2 offset for header+1-based
   }
 
-  // Get user info for tracking
-  const userEmail = Session.getActiveUser().getEmail();
-  const source = detectSource(clientUserAgent);
   const nowIso = new Date().toISOString();
   const writes = [];
 
@@ -175,22 +139,13 @@ function upsertAttendance(
         values: [[!!it.present]],
       });
       writes.push({
+        range: sh.getRange(row, idx[ATTEND_HEADERS.excused] + 1, 1, 1),
+        values: [[!!it.excused]],
+      });
+      writes.push({
         range: sh.getRange(row, idx[ATTEND_HEADERS.ts] + 1, 1, 1),
         values: [[nowIso]],
       });
-      // Add user tracking info
-      if (idx[ATTEND_HEADERS.updatedBy] !== undefined) {
-        writes.push({
-          range: sh.getRange(row, idx[ATTEND_HEADERS.updatedBy] + 1, 1, 1),
-          values: [[userEmail]],
-        });
-      }
-      if (idx[ATTEND_HEADERS.source] !== undefined) {
-        writes.push({
-          range: sh.getRange(row, idx[ATTEND_HEADERS.source] + 1, 1, 1),
-          values: [[source]],
-        });
-      }
       // Opportunistic denorm refresh if columns exist
       if (idx[ATTEND_HEADERS.level] !== undefined) {
         writes.push({
@@ -210,16 +165,13 @@ function upsertAttendance(
       rowVals[idx[ATTEND_HEADERS.date]] = yyyy_mm_dd;
       rowVals[idx[ATTEND_HEADERS.name]] = String(it.name);
       rowVals[idx[ATTEND_HEADERS.present]] = !!it.present;
+      rowVals[idx[ATTEND_HEADERS.excused]] = !!it.excused;
       if (idx[ATTEND_HEADERS.level] !== undefined)
         rowVals[idx[ATTEND_HEADERS.level]] = it.level ?? '';
       if (idx[ATTEND_HEADERS.gender] !== undefined)
         rowVals[idx[ATTEND_HEADERS.gender]] = it.gender ?? '';
       if (idx[ATTEND_HEADERS.ts] !== undefined)
         rowVals[idx[ATTEND_HEADERS.ts]] = nowIso;
-      if (idx[ATTEND_HEADERS.updatedBy] !== undefined)
-        rowVals[idx[ATTEND_HEADERS.updatedBy]] = userEmail;
-      if (idx[ATTEND_HEADERS.source] !== undefined)
-        rowVals[idx[ATTEND_HEADERS.source]] = source;
 
       // Fill sparse to full row length
       for (let i = 0; i < header.length; i++)
@@ -237,18 +189,6 @@ function upsertAttendance(
   return { ok: true, updated: attendanceArray.length };
 }
 
-function detectSource(userAgent) {
-  if (!userAgent || typeof userAgent !== 'string') {
-    return 'Desktop Sidebar';
-  }
-  
-  // Check for mobile user agent strings
-  const mobileKeywords = ['Mobile', 'Android', 'iPhone', 'iPad', 'iPod', 'Windows Phone'];
-  const isMobile = mobileKeywords.some(keyword => userAgent.includes(keyword));
-  
-  return isMobile ? 'Mobile Web App' : 'Desktop Sidebar';
-}
-
 // ----- helpers -----
 function ensureAttendanceHeader(sh) {
   if (!sh) {
@@ -264,11 +204,10 @@ function ensureAttendanceHeader(sh) {
       ATTEND_HEADERS.date,
       ATTEND_HEADERS.name,
       ATTEND_HEADERS.present,
+      ATTEND_HEADERS.excused,
       ATTEND_HEADERS.level,
       ATTEND_HEADERS.gender,
       ATTEND_HEADERS.ts,
-      ATTEND_HEADERS.updatedBy,
-      ATTEND_HEADERS.source,
     ];
     sh.getRange(1, 1, 1, want.length).setValues([want]);
     return;
@@ -279,35 +218,15 @@ function ensureAttendanceHeader(sh) {
     ATTEND_HEADERS.date,
     ATTEND_HEADERS.name,
     ATTEND_HEADERS.present,
+    ATTEND_HEADERS.excused,
     ATTEND_HEADERS.level,
     ATTEND_HEADERS.gender,
     ATTEND_HEADERS.ts,
-    ATTEND_HEADERS.updatedBy,
-    ATTEND_HEADERS.source,
   ];
-  
-  // Check if we need to add the new tracking columns
-  const needsUpdate = !header || header[0] !== ATTEND_HEADERS.date || 
-                     header.length < want.length ||
-                     !header.includes(ATTEND_HEADERS.updatedBy) ||
-                     !header.includes(ATTEND_HEADERS.source);
-  
-  if (needsUpdate) {
-    // If we have existing data, preserve it and extend headers
-    if (header && header[0] === ATTEND_HEADERS.date && header.length > 0) {
-      // Extend existing headers with new tracking columns
-      const newHeaders = [...header];
-      want.forEach(wantHeader => {
-        if (!newHeaders.includes(wantHeader)) {
-          newHeaders.push(wantHeader);
-        }
-      });
-      sh.getRange(1, 1, 1, newHeaders.length).setValues([newHeaders]);
-    } else {
-      // No existing valid data, set fresh headers
-      sh.clearContents();
-      sh.getRange(1, 1, 1, want.length).setValues([want]);
-    }
+  // If header is missing or partial, set it (idempotent, preserves existing trailing columns)
+  if (!header || header[0] !== ATTEND_HEADERS.date) {
+    sh.clearContents();
+    sh.getRange(1, 1, 1, want.length).setValues([want]);
   }
 }
 
@@ -344,42 +263,22 @@ function toDateString(v) {
 
 // Exposed to client
 function api_getRosterAndAttendance(yyyy_mm_dd) {
-  try {
-    console.log('Starting api_getRosterAndAttendance for date:', yyyy_mm_dd);
-    
-    const roster = getRosterSorted();
-    console.log('Roster loaded, count:', roster.length);
-    
-    const presentByName = getAttendanceForDate(yyyy_mm_dd);
-    console.log('Attendance loaded for date:', yyyy_mm_dd, 'Present count:', Object.keys(presentByName).length);
-    
-    // Merge present flags (default false if not set)
-    const merged = roster.map(r => ({
-      name: r.name,
-      level: r.level,
-      gender: r.gender,
-      present: !!presentByName[r.name],
-    }));
-    
-    console.log('Final merged data, count:', merged.length);
-    return { date: yyyy_mm_dd, roster: merged };
-  } catch (error) {
-    console.error('Error in api_getRosterAndAttendance:', error);
-    throw new Error('Failed to load roster: ' + error.message);
-  }
+  const roster = getRosterSorted();
+  const attendanceByName = getAttendanceForDate(yyyy_mm_dd);
+  // Merge attendance flags (default false if not set)
+  const merged = roster.map(r => ({
+    name: r.name,
+    level: r.level,
+    gender: r.gender,
+    present: !!(attendanceByName[r.name]?.present),
+    excused: !!(attendanceByName[r.name]?.excused),
+  }));
+  return { date: yyyy_mm_dd, roster: merged };
 }
 
 function api_saveAttendance(
   yyyy_mm_dd,
-  attendanceList /* [{name, present, level, gender}] */
+  attendanceList /* [{name, present, excused, level, gender}] */
 ) {
   return upsertAttendance(yyyy_mm_dd, attendanceList);
-}
-
-function api_saveAttendanceWithUserInfo(
-  yyyy_mm_dd,
-  attendanceList, /* [{name, present, level, gender}] */
-  clientUserAgent /* user agent string for source detection */
-) {
-  return upsertAttendance(yyyy_mm_dd, attendanceList, clientUserAgent);
 }

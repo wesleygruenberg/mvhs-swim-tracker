@@ -11,50 +11,26 @@
     function showToast(msg) {
       toastEl.textContent = msg;
       toastEl.style.display = 'block';
-      setTimeout(() => (toastEl.style.display = 'none'), 2000);
-    }
-
-    function showError(msg) {
-      listEl.innerHTML = `<div class="error">${msg}</div>`;
-    }
-
-    function showLoading() {
-      listEl.innerHTML = '<div class="loading">Loading roster...</div>';
+      setTimeout(() => (toastEl.style.display = 'none'), 1400);
     }
 
     function load(dateStr) {
-      if (!dateStr) return;
-      showLoading();
-      
       google.script.run
         .withSuccessHandler(render)
-        .withFailureHandler(err => {
-          console.error('Load failed:', err);
-          showError('Failed to load roster. Please try again.');
-        })
+        .withFailureHandler(err => showToast('Load failed'))
         .api_getRosterAndAttendance(dateStr);
     }
 
     function render(payload) {
-      if (!payload || !payload.roster) {
-        showError('No data received from server');
-        return;
-      }
-
       state.date = payload.date;
       state.roster = payload.roster.slice(); // copy
       listEl.innerHTML = '';
-
-      if (state.roster.length === 0) {
-        listEl.innerHTML = '<div class="loading">No swimmers found in roster</div>';
-        return;
-      }
 
       // We already get sorted order from server.
       // Create group headings when level/gender changes: Varsity M/F → JV M/F
       let lastGroup = '';
       state.roster.forEach((r, i) => {
-        const group = `${r.level || 'Unknown'} ${r.gender || '?'}`;
+        const group = `${r.level} ${r.gender}`;
         if (group !== lastGroup) {
           const gt = document.createElement('div');
           gt.className = 'groupTitle';
@@ -68,58 +44,84 @@
 
         const name = document.createElement('div');
         name.className = 'name';
-        name.textContent = r.name || 'Unknown';
+        name.textContent = r.name;
 
         const tag = document.createElement('div');
         tag.className = 'tag';
-        tag.textContent = r.level || '';
+        tag.textContent = r.level;
 
-        const chk = document.createElement('input');
-        chk.type = 'checkbox';
-        chk.className = 'chk';
-        chk.checked = !!r.present;
-        chk.addEventListener('change', () => {
-          r.present = chk.checked;
+        // Create attendance status buttons
+        const attendanceDiv = document.createElement('div');
+        attendanceDiv.className = 'attendance-status';
+
+        const presentBtn = document.createElement('button');
+        presentBtn.className = 'status-btn present';
+        presentBtn.textContent = '✓';
+        presentBtn.title = 'Present';
+
+        const excusedBtn = document.createElement('button');
+        excusedBtn.className = 'status-btn excused';
+        excusedBtn.textContent = 'E';
+        excusedBtn.title = 'Excused';
+
+        const absentBtn = document.createElement('button');
+        absentBtn.className = 'status-btn absent';
+        absentBtn.textContent = '✗';
+        absentBtn.title = 'Absent';
+
+        // Set initial state
+        function updateButtonStates() {
+          presentBtn.classList.toggle('active', !!r.present && !r.excused);
+          excusedBtn.classList.toggle('active', !!r.excused);
+          absentBtn.classList.toggle('active', !r.present && !r.excused);
+        }
+
+        presentBtn.addEventListener('click', () => {
+          r.present = true;
+          r.excused = false;
+          updateButtonStates();
         });
+
+        excusedBtn.addEventListener('click', () => {
+          r.present = false;
+          r.excused = true;
+          updateButtonStates();
+        });
+
+        absentBtn.addEventListener('click', () => {
+          r.present = false;
+          r.excused = false;
+          updateButtonStates();
+        });
+
+        attendanceDiv.appendChild(presentBtn);
+        attendanceDiv.appendChild(excusedBtn);
+        attendanceDiv.appendChild(absentBtn);
+
+        updateButtonStates();
 
         row.appendChild(name);
         row.appendChild(tag);
-        row.appendChild(chk);
+        row.appendChild(attendanceDiv);
         listEl.appendChild(row);
       });
 
-      showToast(`Loaded ${state.roster.length} swimmers`);
+      showToast('Loaded');
     }
 
     function save() {
-      if (!state.roster || state.roster.length === 0) {
-        showToast('No data to save');
-        return;
-      }
-
-      saveBtn.disabled = true;
-      saveBtn.textContent = 'Saving...';
-
       // Minimal payload
       const payload = state.roster.map(r => ({
         name: r.name,
         level: r.level,
         gender: r.gender,
         present: !!r.present,
+        excused: !!r.excused,
       }));
 
       google.script.run
-        .withSuccessHandler(result => {
-          saveBtn.disabled = false;
-          saveBtn.textContent = 'Save';
-          showToast(`Saved attendance for ${payload.length} swimmers`);
-        })
-        .withFailureHandler(err => {
-          console.error('Save failed:', err);
-          saveBtn.disabled = false;
-          saveBtn.textContent = 'Save';
-          showToast('Save failed. Please try again.');
-        })
+        .withSuccessHandler(() => showToast('Saved'))
+        .withFailureHandler(err => showToast('Save failed'))
         .api_saveAttendance(state.date, payload);
     }
 
@@ -129,7 +131,6 @@
       if (!d) return;
       load(d);
     });
-    
     saveBtn.addEventListener('click', save);
 
     // Initial load

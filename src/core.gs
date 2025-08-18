@@ -4121,7 +4121,7 @@ function createAttendanceSummary() {
   summary.getRange('A5').setFormula(`
 =QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A:H,
   "select B, D, WEEKNUM(A), count(B) 
-   where C = TRUE 
+   where C = TRUE or E = TRUE
    group by B, D, WEEKNUM(A)
    order by D, B, WEEKNUM(A)",
   0
@@ -4181,21 +4181,21 @@ function createTestAttendanceData() {
   if (!masterSheet) {
     masterSheet = ss.insertSheet(SHEET_NAMES.MASTER_ATTENDANCE);
     // Add headers
-    const headers = ['Date', 'Name', 'Present', 'Level', 'Gender', 'Timestamp', 'UpdatedBy', 'Source'];
+    const headers = ['Date', 'Name', 'Present', 'Excused', 'Level', 'Gender', 'Timestamp', 'UpdatedBy', 'Source'];
     masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
   
   // Add some test data
   const testData = [
-    ['2025-08-12', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-12', 'Bob Smith', true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-12', 'Carol Davis', false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-14', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-14', 'Bob Smith', true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-14', 'Carol Davis', true, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-16', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-16', 'Bob Smith', false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-16', 'Carol Davis', true, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-12', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-12', 'Bob Smith', true, false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-12', 'Carol Davis', false, true, 'JV', 'F', new Date().toISOString(), 'test', 'test'], // Excused
+    ['2025-08-14', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-14', 'Bob Smith', true, false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-14', 'Carol Davis', true, false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-16', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-16', 'Bob Smith', false, true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'], // Excused
+    ['2025-08-16', 'Carol Davis', true, false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
   ];
   
   const startRow = masterSheet.getLastRow() + 1;
