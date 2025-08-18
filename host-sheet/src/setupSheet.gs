@@ -93,3 +93,21 @@ function generateTryoutRankingsFromSheet() {
 function generateVarsityJVSquads() {
   CoachToolsCore.generateVarsityJVSquads();
 }
+function processCompleteTryouts() {
+  CoachToolsCore.processCompleteTryouts();
+}
+function generateRosterAnnouncement() {
+  CoachToolsCore.generateRosterAnnouncement();
+}
+function applySwimmersColorCoding() {
+  CoachToolsCore.applySwimmersColorCoding();
+}
+function createPRsFromTryouts() {
+  CoachToolsCore.createPRsFromTryouts();
+}
+function setupRelayEvents() {
+  CoachToolsCore.setupRelayEvents();
+}
+function generateRelayAssignments() {
+  CoachToolsCore.generateRelayAssignments();
+}
