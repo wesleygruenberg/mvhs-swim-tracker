@@ -52,6 +52,10 @@ function createAttendanceSummary() {
   CoachToolsCore.createAttendanceSummary();
 }
 
+function createTestAttendanceData() {
+  CoachToolsCore.createTestAttendanceData();
+}
+
 // NEW: Web app entrypoint for phones
 function doGet(e) {
   const t = HtmlService.createTemplateFromFile('AttendanceUI');

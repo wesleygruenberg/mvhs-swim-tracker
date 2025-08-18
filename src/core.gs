@@ -3298,6 +3298,8 @@ function setupCoachToolsMenu() {
         .createMenu('Attendance')
         .addItem('📋 Open Attendance Tracker', 'openAttendanceSidebar')
         .addItem('📊 Create Weekly Summary', 'createAttendanceSummary')
+        .addSeparator()
+        .addItem('🧪 Add Test Data', 'createTestAttendanceData')
     )
     .addSeparator()
     .addSubMenu(
@@ -4082,12 +4084,28 @@ function createAttendanceSummary() {
   let summary = ss.getSheetByName(name) || ss.insertSheet(name);
   summary.clear();
 
+  // Check if Master Attendance sheet exists and has data
+  const masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER_ATTENDANCE);
+  if (!masterSheet) {
+    summary.getRange('A1').setValue('Error: Master Attendance sheet not found. Please create attendance data first.');
+    return;
+  }
+
+  const dataRange = masterSheet.getDataRange();
+  if (!dataRange || dataRange.getNumRows() < 2) {
+    summary.getRange('A1').setValue('No attendance data found. Please add some attendance records first.');
+    return;
+  }
+
   // Title
   summary
     .getRange('A1')
     .setValue('Weekly Attendance Summary')
     .setFontWeight('bold')
     .setFontSize(14);
+
+  // Debug info
+  summary.getRange('A2').setValue(`Data source: ${SHEET_NAMES.MASTER_ATTENDANCE} (${dataRange.getNumRows()-1} records)`);
 
   // Weekly data aggregation using QUERY
   const headers = [
@@ -4097,140 +4115,101 @@ function createAttendanceSummary() {
     'Practices',
     'Meets Requirement'
   ];
-  summary.getRange('A3:E3').setValues([headers]).setFontWeight('bold');
+  summary.getRange('A4:E4').setValues([headers]).setFontWeight('bold');
 
   // Query to aggregate attendance by swimmer and week
-  summary.getRange('A4').setFormula(`
+  summary.getRange('A5').setFormula(`
 =QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A2:H,
   "select B, D, WEEKNUM(A), count(C) 
-   where C = TRUE 
+   where C = true 
    group by B, D, WEEKNUM(A)
    order by D, B, WEEKNUM(A)",
   0
 )
   `.trim());
 
-  // Meets requirement column (✅ if >= 3, ❌ if < 3)
-  summary.getRange('E4').setFormula('=IF(D4>=3,"✅","❌")');
+  // Alternative query to show all data for debugging
+  summary.getRange('G4').setValue('Debug: All Attendance Data').setFontWeight('bold');
+  summary.getRange('G5').setFormula(`
+=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A2:H,
+  "select B, D, A, C limit 10",
+  0
+)
+  `.trim());
 
-  // Copy formula down for all rows
-  const lastRow = summary.getLastRow();
-  if (lastRow > 4) {
-    summary.getRange('E4:E' + lastRow).setFormula('=IF(D4:D' + lastRow + '>=3,"✅","❌")');
-  }
+  // Meets requirement column (✅ if >= 3, ❌ if < 3)
+  summary.getRange('E5').setFormula('=IF(D5>=3,"✅","❌")');
+
+  // Apply the formula to more rows
+  summary.getRange('E5:E50').setFormula('=IF(D5:D50>=3,"✅","❌")');
 
   // Team-level compliance metrics
-  summary.getRange('G1').setValue('Team Compliance Metrics').setFontWeight('bold').setFontSize(12);
+  summary.getRange('A52').setValue('Team Compliance Metrics').setFontWeight('bold').setFontSize(12);
 
-  // Varsity Male metrics
-  summary.getRange('G3').setValue('Varsity Male').setFontWeight('bold');
-  summary.getRange('G4').setValue('% Meeting 3x/week:');
-  summary.getRange('H4').setFormula(`
-=ROUND(
-  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*(E:E="✅")) / 
-  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")) * 100, 1
-) & "%"
-  `.trim());
-  summary.getRange('G5').setValue('Avg practices/week:');
-  summary.getRange('H5').setFormula(`
-=ROUND(SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*D:D) / 
-       SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")), 1)
+  // Create simplified metrics for now
+  summary.getRange('A54').setValue('Varsity Team').setFontWeight('bold');
+  summary.getRange('A55').setValue('% Meeting 3x/week:');
+  summary.getRange('B55').setFormula(`
+=ROUND(COUNTIFS(B:B,"Varsity",E:E,"✅") / COUNTIF(B:B,"Varsity") * 100, 1) & "%"
   `.trim());
 
-  // Varsity Female metrics
-  summary.getRange('G7').setValue('Varsity Female').setFontWeight('bold');
-  summary.getRange('G8').setValue('% Meeting 3x/week:');
-  summary.getRange('H8').setFormula(`
-=ROUND(
-  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*(E:E="✅")) / 
-  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")) * 100, 1
-) & "%"
-  `.trim());
-  summary.getRange('G9').setValue('Avg practices/week:');
-  summary.getRange('H9').setFormula(`
-=ROUND(SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*D:D) / 
-       SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")), 1)
+  summary.getRange('A56').setValue('Avg practices/week:');
+  summary.getRange('B56').setFormula(`
+=ROUND(AVERAGEIF(B:B,"Varsity",D:D), 1)
   `.trim());
 
-  // JV Male metrics
-  summary.getRange('G11').setValue('JV Male').setFontWeight('bold');
-  summary.getRange('G12').setValue('% Meeting 3x/week:');
-  summary.getRange('H12').setFormula(`
-=ROUND(
-  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*(E:E="✅")) / 
-  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")) * 100, 1
-) & "%"
-  `.trim());
-  summary.getRange('G13').setValue('Avg practices/week:');
-  summary.getRange('H13').setFormula(`
-=ROUND(SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*D:D) / 
-       SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")), 1)
+  summary.getRange('A58').setValue('JV Team').setFontWeight('bold');
+  summary.getRange('A59').setValue('% Meeting 3x/week:');
+  summary.getRange('B59').setFormula(`
+=ROUND(COUNTIFS(B:B,"JV",E:E,"✅") / COUNTIF(B:B,"JV") * 100, 1) & "%"
   `.trim());
 
-  // JV Female metrics
-  summary.getRange('G15').setValue('JV Female').setFontWeight('bold');
-  summary.getRange('G16').setValue('% Meeting 3x/week:');
-  summary.getRange('H16').setFormula(`
-=ROUND(
-  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*(E:E="✅")) / 
-  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")) * 100, 1
-) & "%"
+  summary.getRange('A60').setValue('Avg practices/week:');
+  summary.getRange('B60').setFormula(`
+=ROUND(AVERAGEIF(B:B,"JV",D:D), 1)
   `.trim());
-  summary.getRange('G17').setValue('Avg practices/week:');
-  summary.getRange('H17').setFormula(`
-=ROUND(SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*D:D) / 
-       SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")), 1)
-  `.trim());
-
-  // Create charts for each sub-team
-  createAttendanceCharts(summary);
 
   // Format and resize
-  summary.setFrozenRows(3);
+  summary.setFrozenRows(4);
   summary.autoResizeColumns(1, 8);
 }
 
-function createAttendanceCharts(summary) {
-  const teams = [
-    { name: 'Varsity Male', level: 'Varsity', gender: 'M', row: 19 },
-    { name: 'Varsity Female', level: 'Varsity', gender: 'F', row: 34 },
-    { name: 'JV Male', level: 'JV', gender: 'M', row: 49 },
-    { name: 'JV Female', level: 'JV', gender: 'F', row: 64 }
+function createTestAttendanceData() {
+  const ss = SpreadsheetApp.getActive();
+  let masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER_ATTENDANCE);
+  
+  if (!masterSheet) {
+    masterSheet = ss.insertSheet(SHEET_NAMES.MASTER_ATTENDANCE);
+    // Add headers
+    const headers = ['Date', 'Name', 'Present', 'Level', 'Gender', 'Timestamp', 'UpdatedBy', 'Source'];
+    masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+  }
+  
+  // Add some test data
+  const testData = [
+    ['2025-08-12', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-12', 'Bob Smith', true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-12', 'Carol Davis', false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-14', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-14', 'Bob Smith', true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-14', 'Carol Davis', true, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-16', 'Alice Johnson', true, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-16', 'Bob Smith', false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
+    ['2025-08-16', 'Carol Davis', true, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
   ];
+  
+  const startRow = masterSheet.getLastRow() + 1;
+  masterSheet.getRange(startRow, 1, testData.length, testData[0].length).setValues(testData);
+  
+  SpreadsheetApp.getUi().alert('Test attendance data added! Now try creating the attendance summary again.');
+}
 
-  teams.forEach(team => {
-    // Add team header
-    summary.getRange(`J${team.row}`).setValue(team.name).setFontWeight('bold');
-    
-    // Create chart data headers
-    const chartHeaders = ['Swimmer', 'Week', 'Practices'];
-    summary.getRange(`J${team.row + 1}:L${team.row + 1}`).setValues([chartHeaders]).setFontWeight('bold');
-    
-    // Use QUERY to get team-specific data filtered by both level and gender
-    summary.getRange(`J${team.row + 2}`).setFormula(`
-=QUERY(A4:E,
-  "select A, C, D where B = '${team.level}' order by A, C",
-  0
-)
-    `.trim());
-
-    // Create chart using the filtered data
-    const chart = summary.newChart()
-      .setChartType(Charts.ChartType.COLUMN)
-      .addRange(summary.getRange(`J${team.row + 1}:L${team.row + 11}`))
-      .setPosition(team.row, 14, 0, 0) // Column N
-      .setOption('title', `${team.name} Weekly Attendance`)
-      .setOption('hAxis.title', 'Week')
-      .setOption('vAxis.title', 'Practices Attended')
-      .setOption('width', 400)
-      .setOption('height', 250)
-      .setOption('series', {
-        0: { targetAxisIndex: 0 }
-      })
-      .build();
-    
-    summary.insertChart(chart);
-  });
+function createAttendanceCharts(summary) {
+  // For now, let's skip the complex charts and focus on getting the basic data working
+  // We can add charts back once we confirm the QUERY is working
+  
+  summary.getRange('J1').setValue('Charts will be added once data is confirmed working').setFontWeight('bold');
+  summary.getRange('J2').setValue('Debug: If you see swimmer data in columns A-E, charts can be enabled');
 }
 
 function buildCoachPacket() {
