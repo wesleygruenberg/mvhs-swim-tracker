@@ -48,6 +48,10 @@ function openAttendanceSidebar() {
     .showSidebar(t.evaluate().setTitle('Attendance').setWidth(360));
 }
 
+function createAttendanceSummary() {
+  CoachToolsCore.createAttendanceSummary();
+}
+
 // NEW: Web app entrypoint for phones
 function doGet(e) {
   const t = HtmlService.createTemplateFromFile('AttendanceUI');
