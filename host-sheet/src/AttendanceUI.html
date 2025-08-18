@@ -287,7 +287,15 @@
             .withSuccessHandler(render)
             .withFailureHandler(err => {
               console.error('Load failed:', err);
-              showError('Failed to load roster. Please try again.');
+              let errorMsg = 'Failed to load roster. ';
+              if (err && err.message) {
+                errorMsg += err.message;
+              } else if (typeof err === 'string') {
+                errorMsg += err;
+              } else {
+                errorMsg += 'Please check that you have a "Swimmers" sheet with Name, Gender, and Level columns.';
+              }
+              showError(errorMsg);
             })
             .api_getRosterAndAttendance(dateStr);
         }

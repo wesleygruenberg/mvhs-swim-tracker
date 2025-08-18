@@ -23,62 +23,94 @@ const ATTEND_HEADERS = {
 };
 
 function getRosterSorted() {
-  const ss = SpreadsheetApp.getActive();
-  const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.roster);
-  if (!sh) throw new Error('Missing Swimmers sheet');
-
-  const values = sh.getDataRange().getValues();
-  const header = values.shift();
-  const idx = indexMap(header);
-
-  const rows = values
-    .map(r => ({
-      name: val(r, idx, ROSTER_HEADERS.name),
-      gradYear: val(r, idx, ROSTER_HEADERS.gradYear),
-      gender: val(r, idx, ROSTER_HEADERS.gender),
-      level: val(r, idx, ROSTER_HEADERS.level),
-      notes: val(r, idx, ROSTER_HEADERS.notes),
-    }))
-    .filter(x => x.name && x.name.trim() !== ''); // Only include rows with names
-
-  // Normalize gender and level values
-  rows.forEach(r => {
-    // Normalize gender (M/Male -> M, F/Female -> F)
-    const genderStr = String(r.gender || '').toUpperCase().trim();
-    if (genderStr === 'MALE' || genderStr === 'M') {
-      r.gender = 'M';
-    } else if (genderStr === 'FEMALE' || genderStr === 'F') {
-      r.gender = 'F';
+  try {
+    const ss = SpreadsheetApp.getActive();
+    const sh = ss.getSheetByName(SHEET_NAMES_ATTENDANCE.roster);
+    if (!sh) {
+      console.error('Sheet not found:', SHEET_NAMES_ATTENDANCE.roster);
+      throw new Error('Missing Swimmers sheet. Please create a sheet named "Swimmers" with columns: Name, Gender, Level');
     }
 
-    // Normalize level (V -> Varsity, JV -> JV)
-    const levelStr = String(r.level || '').toUpperCase().trim();
-    if (levelStr === 'V' || levelStr === 'VARSITY') {
-      r.level = 'Varsity';
-    } else if (levelStr === 'JV') {
-      r.level = 'JV';
+    console.log('Found sheet:', SHEET_NAMES_ATTENDANCE.roster);
+    
+    const dataRange = sh.getDataRange();
+    if (!dataRange || dataRange.getNumRows() < 2) {
+      console.log('No data in sheet or only header row');
+      return []; // Return empty array if no data
     }
-  });
+    
+    const values = dataRange.getValues();
+    const header = values.shift();
+    const idx = indexMap(header);
+    
+    console.log('Sheet headers:', header);
+    console.log('Header index map:', idx);
 
-  // Filter out any with invalid gender/level after normalization
-  const validRows = rows.filter(x => 
-    (x.gender === 'M' || x.gender === 'F') && 
-    (x.level === 'Varsity' || x.level === 'JV')
-  );
+    const rows = values
+      .map((r, rowIndex) => {
+        try {
+          return {
+            name: val(r, idx, ROSTER_HEADERS.name),
+            gradYear: val(r, idx, ROSTER_HEADERS.gradYear),
+            gender: val(r, idx, ROSTER_HEADERS.gender),
+            level: val(r, idx, ROSTER_HEADERS.level),
+            notes: val(r, idx, ROSTER_HEADERS.notes),
+          };
+        } catch (error) {
+          console.warn('Error processing row', rowIndex + 2, ':', error, 'Row data:', r);
+          return null;
+        }
+      })
+      .filter(x => x && x.name && x.name.trim() !== ''); // Only include valid rows with names
 
-  // Sorting: Varsity → JV; M → F; Name asc
-  const levelOrder = { Varsity: 0, JV: 1 };
-  const genderOrder = { M: 0, F: 1 };
+    console.log('Processed rows count:', rows.length);
 
-  validRows.sort((a, b) => {
-    const lv = (levelOrder[a.level] ?? 99) - (levelOrder[b.level] ?? 99);
-    if (lv !== 0) return lv;
-    const gv = (genderOrder[a.gender] ?? 99) - (genderOrder[b.gender] ?? 99);
-    if (gv !== 0) return gv;
-    return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
-  });
+    // Normalize gender and level values
+    rows.forEach(r => {
+      // Normalize gender (M/Male -> M, F/Female -> F)
+      const genderStr = String(r.gender || '').toUpperCase().trim();
+      if (genderStr === 'MALE' || genderStr === 'M') {
+        r.gender = 'M';
+      } else if (genderStr === 'FEMALE' || genderStr === 'F') {
+        r.gender = 'F';
+      }
 
-  return validRows;
+      // Normalize level (V -> Varsity, JV -> JV)
+      const levelStr = String(r.level || '').toUpperCase().trim();
+      if (levelStr === 'V' || levelStr === 'VARSITY') {
+        r.level = 'Varsity';
+      } else if (levelStr === 'JV') {
+        r.level = 'JV';
+      }
+    });
+
+    // Filter out any with invalid gender/level after normalization
+    const validRows = rows.filter(x => 
+      (x.gender === 'M' || x.gender === 'F') && 
+      (x.level === 'Varsity' || x.level === 'JV')
+    );
+
+    console.log('Valid rows after filtering:', validRows.length);
+
+    // Sorting: Varsity → JV; M → F; Name asc
+    const levelOrder = { Varsity: 0, JV: 1 };
+    const genderOrder = { M: 0, F: 1 };
+
+    validRows.sort((a, b) => {
+      const lv = (levelOrder[a.level] ?? 99) - (levelOrder[b.level] ?? 99);
+      if (lv !== 0) return lv;
+      const gv = (genderOrder[a.gender] ?? 99) - (genderOrder[b.gender] ?? 99);
+      if (gv !== 0) return gv;
+      return a.name.localeCompare(b.name, 'en', { sensitivity: 'base' });
+    });
+
+    console.log('Final sorted roster:', validRows.length, 'swimmers');
+    return validRows;
+    
+  } catch (error) {
+    console.error('Error in getRosterSorted:', error);
+    throw new Error('Failed to load roster from Swimmers sheet: ' + error.message);
+  }
 }
 
 function getAttendanceForDate(yyyy_mm_dd) {
@@ -312,16 +344,29 @@ function toDateString(v) {
 
 // Exposed to client
 function api_getRosterAndAttendance(yyyy_mm_dd) {
-  const roster = getRosterSorted();
-  const presentByName = getAttendanceForDate(yyyy_mm_dd);
-  // Merge present flags (default false if not set)
-  const merged = roster.map(r => ({
-    name: r.name,
-    level: r.level,
-    gender: r.gender,
-    present: !!presentByName[r.name],
-  }));
-  return { date: yyyy_mm_dd, roster: merged };
+  try {
+    console.log('Starting api_getRosterAndAttendance for date:', yyyy_mm_dd);
+    
+    const roster = getRosterSorted();
+    console.log('Roster loaded, count:', roster.length);
+    
+    const presentByName = getAttendanceForDate(yyyy_mm_dd);
+    console.log('Attendance loaded for date:', yyyy_mm_dd, 'Present count:', Object.keys(presentByName).length);
+    
+    // Merge present flags (default false if not set)
+    const merged = roster.map(r => ({
+      name: r.name,
+      level: r.level,
+      gender: r.gender,
+      present: !!presentByName[r.name],
+    }));
+    
+    console.log('Final merged data, count:', merged.length);
+    return { date: yyyy_mm_dd, roster: merged };
+  } catch (error) {
+    console.error('Error in api_getRosterAndAttendance:', error);
+    throw new Error('Failed to load roster: ' + error.message);
+  }
 }
 
 function api_saveAttendance(

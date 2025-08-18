@@ -1,0 +1,96 @@
+<script>
+  (function () {
+    const dateEl = document.getElementById('date');
+    const listEl = document.getElementById('list');
+    const saveBtn = document.getElementById('saveBtn');
+    const toastEl = document.getElementById('toast');
+
+    // Stateful copy so we can save without re-reading DOM
+    let state = { date: dateEl.value, roster: [] };
+
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      setTimeout(() => (toastEl.style.display = 'none'), 1400);
+    }
+
+    function load(dateStr) {
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(err => showToast('Load failed'))
+        .api_getRosterAndAttendance(dateStr);
+    }
+
+    function render(payload) {
+      state.date = payload.date;
+      state.roster = payload.roster.slice(); // copy
+      listEl.innerHTML = '';
+
+      // We already get sorted order from server.
+      // Create group headings when level/gender changes: Varsity M/F → JV M/F
+      let lastGroup = '';
+      state.roster.forEach((r, i) => {
+        const group = `${r.level} ${r.gender}`;
+        if (group !== lastGroup) {
+          const gt = document.createElement('div');
+          gt.className = 'groupTitle';
+          gt.textContent = group;
+          listEl.appendChild(gt);
+          lastGroup = group;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = r.name;
+
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.textContent = r.level;
+
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.className = 'chk';
+        chk.checked = !!r.present;
+        chk.addEventListener('change', () => {
+          r.present = chk.checked;
+        });
+
+        row.appendChild(name);
+        row.appendChild(tag);
+        row.appendChild(chk);
+        listEl.appendChild(row);
+      });
+
+      showToast('Loaded');
+    }
+
+    function save() {
+      // Minimal payload
+      const payload = state.roster.map(r => ({
+        name: r.name,
+        level: r.level,
+        gender: r.gender,
+        present: !!r.present,
+      }));
+
+      google.script.run
+        .withSuccessHandler(() => showToast('Saved'))
+        .withFailureHandler(err => showToast('Save failed'))
+        .api_saveAttendance(state.date, payload);
+    }
+
+    // Events
+    dateEl.addEventListener('change', () => {
+      const d = dateEl.value;
+      if (!d) return;
+      load(d);
+    });
+    saveBtn.addEventListener('click', save);
+
+    // Initial load
+    load(dateEl.value);
+  })();
+</script>

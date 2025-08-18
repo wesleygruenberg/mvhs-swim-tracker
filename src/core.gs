@@ -3291,6 +3291,7 @@ function setupCoachToolsMenu() {
   ui.createMenu('Coach Tools')
     .addItem('About Coach Tools', 'aboutCoachTools')
     .addItem('Refresh All (safe)', 'refreshAll')
+    .addItem('Attendance', 'openAttendanceSidebar')
     .addSeparator()
     .addSubMenu(
       ui
@@ -3397,6 +3398,12 @@ function openAddResultSidebar() {
   const html = buildAddResultSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
 }
+
+function openAttendanceSidebar() {
+  const html = buildAttendanceSidebar();
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
 function openAddMeetSidebar() {
   const html = buildAddMeetSidebar();
   SpreadsheetApp.getUi().showSidebar(html);
@@ -5947,6 +5954,21 @@ function buildAddResultSidebar() {
   );
 }
 
+function buildAttendanceSidebar() {
+  const t = HtmlService.createTemplateFromFile('AttendanceUI');
+  // Default date = today in local time (yyyy-mm-dd)
+  t.defaultDate = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'yyyy-MM-dd'
+  );
+  return t
+    .evaluate()
+    .setTitle('Attendance')
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME)
+    .setWidth(360);
+}
+
 function buildAddMeetSidebar() {
   return HtmlService.createHtmlOutput(addMeetSidebarHtml_()).setTitle(
     'Add Meet'
@@ -5957,4 +5979,26 @@ function buildAddEventSidebar() {
   return HtmlService.createHtmlOutput(addEventSidebarHtml_()).setTitle(
     'Add Event'
   );
+}
+
+// Attendance sidebar functions
+function openAttendanceSidebar() {
+  const t = HtmlService.createTemplateFromFile('AttendanceUI');
+  // Default date = today in local time (yyyy-mm-dd)
+  t.defaultDate = Utilities.formatDate(
+    new Date(),
+    Session.getScriptTimeZone(),
+    'yyyy-MM-dd'
+  );
+  const html = t
+    .evaluate()
+    .setTitle('Attendance')
+    .setSandboxMode(HtmlService.SandboxMode.IFRAME) // default anyway
+    .setWidth(360); // narrow for phone
+  SpreadsheetApp.getUi().showSidebar(html);
+}
+
+// Helper to include partials (css/js)
+function include(filename) {
+  return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
