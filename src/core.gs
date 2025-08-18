@@ -20,6 +20,8 @@ const SHEET_NAMES = {
   SWIMMER_DASHBOARD: 'Swimmer Dashboard',
   COACH_PACKET: 'Coach Packet',
   SETTINGS: 'Settings',
+  ATTENDANCE_SUMMARY: 'Attendance Summary',
+  MASTER_ATTENDANCE: 'Master Attendance',
 };
 
 // Configuration constants
@@ -3291,7 +3293,12 @@ function setupCoachToolsMenu() {
   ui.createMenu('Coach Tools')
     .addItem('About Coach Tools', 'aboutCoachTools')
     .addItem('Refresh All (safe)', 'refreshAll')
-    .addItem('Attendance', 'openAttendanceSidebar')
+    .addSubMenu(
+      ui
+        .createMenu('Attendance')
+        .addItem('📋 Open Attendance Tracker', 'openAttendanceSidebar')
+        .addItem('📊 Create Weekly Summary', 'createAttendanceSummary')
+    )
     .addSeparator()
     .addSubMenu(
       ui
@@ -4067,6 +4074,163 @@ function refreshPRs() {
   createPRSummary();
   createSwimmerDashboard();
   toast('PR Summary & Dashboard refreshed.');
+}
+
+function createAttendanceSummary() {
+  const ss = SpreadsheetApp.getActive();
+  const name = SHEET_NAMES.ATTENDANCE_SUMMARY;
+  let summary = ss.getSheetByName(name) || ss.insertSheet(name);
+  summary.clear();
+
+  // Title
+  summary
+    .getRange('A1')
+    .setValue('Weekly Attendance Summary')
+    .setFontWeight('bold')
+    .setFontSize(14);
+
+  // Weekly data aggregation using QUERY
+  const headers = [
+    'Swimmer',
+    'Team',
+    'Week',
+    'Practices',
+    'Meets Requirement'
+  ];
+  summary.getRange('A3:E3').setValues([headers]).setFontWeight('bold');
+
+  // Query to aggregate attendance by swimmer and week
+  summary.getRange('A4').setFormula(`
+=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A2:H,
+  "select B, D, WEEKNUM(A), count(C) 
+   where C = TRUE 
+   group by B, D, WEEKNUM(A)
+   order by D, B, WEEKNUM(A)",
+  0
+)
+  `.trim());
+
+  // Meets requirement column (✅ if >= 3, ❌ if < 3)
+  summary.getRange('E4').setFormula('=IF(D4>=3,"✅","❌")');
+
+  // Copy formula down for all rows
+  const lastRow = summary.getLastRow();
+  if (lastRow > 4) {
+    summary.getRange('E4:E' + lastRow).setFormula('=IF(D4:D' + lastRow + '>=3,"✅","❌")');
+  }
+
+  // Team-level compliance metrics
+  summary.getRange('G1').setValue('Team Compliance Metrics').setFontWeight('bold').setFontSize(12);
+
+  // Varsity Male metrics
+  summary.getRange('G3').setValue('Varsity Male').setFontWeight('bold');
+  summary.getRange('G4').setValue('% Meeting 3x/week:');
+  summary.getRange('H4').setFormula(`
+=ROUND(
+  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*(E:E="✅")) / 
+  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")) * 100, 1
+) & "%"
+  `.trim());
+  summary.getRange('G5').setValue('Avg practices/week:');
+  summary.getRange('H5').setFormula(`
+=ROUND(SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*D:D) / 
+       SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")), 1)
+  `.trim());
+
+  // Varsity Female metrics
+  summary.getRange('G7').setValue('Varsity Female').setFontWeight('bold');
+  summary.getRange('G8').setValue('% Meeting 3x/week:');
+  summary.getRange('H8').setFormula(`
+=ROUND(
+  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*(E:E="✅")) / 
+  SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")) * 100, 1
+) & "%"
+  `.trim());
+  summary.getRange('G9').setValue('Avg practices/week:');
+  summary.getRange('H9').setFormula(`
+=ROUND(SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*D:D) / 
+       SUMPRODUCT((B:B="Varsity")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")), 1)
+  `.trim());
+
+  // JV Male metrics
+  summary.getRange('G11').setValue('JV Male').setFontWeight('bold');
+  summary.getRange('G12').setValue('% Meeting 3x/week:');
+  summary.getRange('H12').setFormula(`
+=ROUND(
+  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*(E:E="✅")) / 
+  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")) * 100, 1
+) & "%"
+  `.trim());
+  summary.getRange('G13').setValue('Avg practices/week:');
+  summary.getRange('H13').setFormula(`
+=ROUND(SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")*D:D) / 
+       SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="M")), 1)
+  `.trim());
+
+  // JV Female metrics
+  summary.getRange('G15').setValue('JV Female').setFontWeight('bold');
+  summary.getRange('G16').setValue('% Meeting 3x/week:');
+  summary.getRange('H16').setFormula(`
+=ROUND(
+  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*(E:E="✅")) / 
+  SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")) * 100, 1
+) & "%"
+  `.trim());
+  summary.getRange('G17').setValue('Avg practices/week:');
+  summary.getRange('H17').setFormula(`
+=ROUND(SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")*D:D) / 
+       SUMPRODUCT((B:B="JV")*(INDIRECT("'${SHEET_NAMES.MASTER_ATTENDANCE}'!E:E")="F")), 1)
+  `.trim());
+
+  // Create charts for each sub-team
+  createAttendanceCharts(summary);
+
+  // Format and resize
+  summary.setFrozenRows(3);
+  summary.autoResizeColumns(1, 8);
+}
+
+function createAttendanceCharts(summary) {
+  const teams = [
+    { name: 'Varsity Male', level: 'Varsity', gender: 'M', row: 19 },
+    { name: 'Varsity Female', level: 'Varsity', gender: 'F', row: 34 },
+    { name: 'JV Male', level: 'JV', gender: 'M', row: 49 },
+    { name: 'JV Female', level: 'JV', gender: 'F', row: 64 }
+  ];
+
+  teams.forEach(team => {
+    // Add team header
+    summary.getRange(`J${team.row}`).setValue(team.name).setFontWeight('bold');
+    
+    // Create chart data headers
+    const chartHeaders = ['Swimmer', 'Week', 'Practices'];
+    summary.getRange(`J${team.row + 1}:L${team.row + 1}`).setValues([chartHeaders]).setFontWeight('bold');
+    
+    // Use QUERY to get team-specific data filtered by both level and gender
+    summary.getRange(`J${team.row + 2}`).setFormula(`
+=QUERY(A4:E,
+  "select A, C, D where B = '${team.level}' order by A, C",
+  0
+)
+    `.trim());
+
+    // Create chart using the filtered data
+    const chart = summary.newChart()
+      .setChartType(Charts.ChartType.COLUMN)
+      .addRange(summary.getRange(`J${team.row + 1}:L${team.row + 11}`))
+      .setPosition(team.row, 14, 0, 0) // Column N
+      .setOption('title', `${team.name} Weekly Attendance`)
+      .setOption('hAxis.title', 'Week')
+      .setOption('vAxis.title', 'Practices Attended')
+      .setOption('width', 400)
+      .setOption('height', 250)
+      .setOption('series', {
+        0: { targetAxisIndex: 0 }
+      })
+      .build();
+    
+    summary.insertChart(chart);
+  });
 }
 
 function buildCoachPacket() {
