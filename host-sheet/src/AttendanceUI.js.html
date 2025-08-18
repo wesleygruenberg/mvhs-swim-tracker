@@ -1,0 +1,138 @@
+<script>
+  (function () {
+    const dateEl = document.getElementById('date');
+    const listEl = document.getElementById('list');
+    const saveBtn = document.getElementById('saveBtn');
+    const toastEl = document.getElementById('toast');
+
+    // Stateful copy so we can save without re-reading DOM
+    let state = { date: dateEl.value, roster: [] };
+
+    function showToast(msg) {
+      toastEl.textContent = msg;
+      toastEl.style.display = 'block';
+      setTimeout(() => (toastEl.style.display = 'none'), 2000);
+    }
+
+    function showError(msg) {
+      listEl.innerHTML = `<div class="error">${msg}</div>`;
+    }
+
+    function showLoading() {
+      listEl.innerHTML = '<div class="loading">Loading roster...</div>';
+    }
+
+    function load(dateStr) {
+      if (!dateStr) return;
+      showLoading();
+      
+      google.script.run
+        .withSuccessHandler(render)
+        .withFailureHandler(err => {
+          console.error('Load failed:', err);
+          showError('Failed to load roster. Please try again.');
+        })
+        .api_getRosterAndAttendance(dateStr);
+    }
+
+    function render(payload) {
+      if (!payload || !payload.roster) {
+        showError('No data received from server');
+        return;
+      }
+
+      state.date = payload.date;
+      state.roster = payload.roster.slice(); // copy
+      listEl.innerHTML = '';
+
+      if (state.roster.length === 0) {
+        listEl.innerHTML = '<div class="loading">No swimmers found in roster</div>';
+        return;
+      }
+
+      // We already get sorted order from server.
+      // Create group headings when level/gender changes: Varsity M/F → JV M/F
+      let lastGroup = '';
+      state.roster.forEach((r, i) => {
+        const group = `${r.level || 'Unknown'} ${r.gender || '?'}`;
+        if (group !== lastGroup) {
+          const gt = document.createElement('div');
+          gt.className = 'groupTitle';
+          gt.textContent = group;
+          listEl.appendChild(gt);
+          lastGroup = group;
+        }
+
+        const row = document.createElement('div');
+        row.className = 'row';
+
+        const name = document.createElement('div');
+        name.className = 'name';
+        name.textContent = r.name || 'Unknown';
+
+        const tag = document.createElement('div');
+        tag.className = 'tag';
+        tag.textContent = r.level || '';
+
+        const chk = document.createElement('input');
+        chk.type = 'checkbox';
+        chk.className = 'chk';
+        chk.checked = !!r.present;
+        chk.addEventListener('change', () => {
+          r.present = chk.checked;
+        });
+
+        row.appendChild(name);
+        row.appendChild(tag);
+        row.appendChild(chk);
+        listEl.appendChild(row);
+      });
+
+      showToast(`Loaded ${state.roster.length} swimmers`);
+    }
+
+    function save() {
+      if (!state.roster || state.roster.length === 0) {
+        showToast('No data to save');
+        return;
+      }
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+
+      // Minimal payload
+      const payload = state.roster.map(r => ({
+        name: r.name,
+        level: r.level,
+        gender: r.gender,
+        present: !!r.present,
+      }));
+
+      google.script.run
+        .withSuccessHandler(result => {
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          showToast(`Saved attendance for ${payload.length} swimmers`);
+        })
+        .withFailureHandler(err => {
+          console.error('Save failed:', err);
+          saveBtn.disabled = false;
+          saveBtn.textContent = 'Save';
+          showToast('Save failed. Please try again.');
+        })
+        .api_saveAttendance(state.date, payload);
+    }
+
+    // Events
+    dateEl.addEventListener('change', () => {
+      const d = dateEl.value;
+      if (!d) return;
+      load(d);
+    });
+    
+    saveBtn.addEventListener('click', save);
+
+    // Initial load
+    load(dateEl.value);
+  })();
+</script>

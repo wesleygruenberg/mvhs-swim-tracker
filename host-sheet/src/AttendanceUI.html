@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no"
+    />
+    <style>
+      :root {
+        --pad: 16px;
+        --row: 52px;
+        --primary: #1976d2;
+        --primary-dark: #1565c0;
+        --border: #e0e0e0;
+        --bg-group: #f5f5f5;
+        --text-secondary: #666;
+      }
+      
+      * {
+        box-sizing: border-box;
+      }
+      
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: #fff;
+        font-size: 16px;
+        line-height: 1.4;
+      }
+      
+      .bar {
+        position: sticky;
+        top: 0;
+        background: #fff;
+        z-index: 10;
+        border-bottom: 2px solid var(--border);
+        padding: 12px var(--pad);
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .bar-row {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 8px;
+      }
+      
+      .bar-row:last-child {
+        margin-bottom: 0;
+      }
+      
+      input[type='date'] {
+        flex: 1;
+        height: 40px;
+        padding: 8px 12px;
+        border: 2px solid var(--border);
+        border-radius: 8px;
+        font-size: 16px;
+        background: #fff;
+      }
+      
+      input[type='date']:focus {
+        outline: none;
+        border-color: var(--primary);
+      }
+      
+      button {
+        height: 40px;
+        border: none;
+        background: var(--primary);
+        color: #fff;
+        border-radius: 8px;
+        padding: 0 20px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        min-width: 80px;
+      }
+      
+      button:hover {
+        background: var(--primary-dark);
+      }
+      
+      button:active {
+        transform: translateY(1px);
+      }
+      
+      .btn-secondary {
+        background: #666;
+        font-size: 14px;
+        height: 36px;
+        min-width: 70px;
+        padding: 0 16px;
+      }
+      
+      .btn-secondary:hover {
+        background: #555;
+      }
+      
+      .groupTitle {
+        padding: 12px var(--pad);
+        font-weight: 600;
+        color: #333;
+        background: var(--bg-group);
+        border-top: 1px solid var(--border);
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        position: sticky;
+        top: 76px;
+        z-index: 5;
+      }
+      
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0 var(--pad);
+        height: var(--row);
+        border-bottom: 1px solid #f0f0f0;
+        background: #fff;
+        transition: background-color 0.2s;
+      }
+      
+      .row:hover {
+        background: #fafafa;
+      }
+      
+      .name {
+        flex: 1;
+        padding-right: 12px;
+        font-weight: 500;
+        color: #333;
+      }
+      
+      .tag {
+        font-size: 12px;
+        color: var(--text-secondary);
+        min-width: 60px;
+        text-align: right;
+        margin-right: 12px;
+        font-weight: 500;
+      }
+      
+      .chk {
+        width: 28px;
+        height: 28px;
+        cursor: pointer;
+        accent-color: var(--primary);
+      }
+      
+      .toast {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: 20px;
+        background: #333;
+        color: #fff;
+        padding: 12px 20px;
+        border-radius: 8px;
+        display: none;
+        font-weight: 500;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 1000;
+      }
+      
+      .loading {
+        text-align: center;
+        padding: 40px var(--pad);
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+      
+      .error {
+        text-align: center;
+        padding: 40px var(--pad);
+        color: #d32f2f;
+        background: #ffebee;
+        margin: 16px;
+        border-radius: 8px;
+        border: 1px solid #ffcdd2;
+      }
+      
+      /* Mobile touch improvements */
+      @media (max-width: 480px) {
+        .bar {
+          padding: 8px 12px;
+        }
+        
+        .bar-row {
+          gap: 8px;
+          margin-bottom: 6px;
+        }
+        
+        input[type='date'] {
+          height: 44px;
+        }
+        
+        button {
+          height: 44px;
+          padding: 0 16px;
+        }
+        
+        .btn-secondary {
+          height: 40px;
+          font-size: 13px;
+          min-width: 60px;
+          padding: 0 12px;
+        }
+        
+        .row {
+          height: 56px;
+          padding: 0 12px;
+        }
+        
+        .chk {
+          width: 32px;
+          height: 32px;
+        }
+        
+        .groupTitle {
+          padding: 12px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <? if (isWebApp) { ?>
+      <div style="padding:8px 12px; font-size:12px; color:#555; border-bottom:1px dashed #ddd;">
+        Tip: Add this page to your home screen for one-tap attendance.
+      </div>
+    <? } ?>
+    <div class="bar">
+      <div class="bar-row">
+        <input id="date" type="date" value="<?= defaultDate ?>" />
+        <button id="saveBtn">Save</button>
+      </div>
+      <div class="bar-row">
+        <button id="selectAllBtn" class="btn-secondary">All</button>
+        <button id="selectNoneBtn" class="btn-secondary">None</button>
+      </div>
+    </div>
+
+    <div id="list">
+      <div class="loading">Loading roster...</div>
+    </div>
+    
+    <div id="toast" class="toast"></div>
+
+    <script>
+      const IS_WEB_APP = <?= isWebApp ? 'true' : 'false' ?>;
+      const USER_AGENT = navigator.userAgent;
+      
+      (function () {
+        const dateEl = document.getElementById('date');
+        const listEl = document.getElementById('list');
+        const saveBtn = document.getElementById('saveBtn');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const selectNoneBtn = document.getElementById('selectNoneBtn');
+        const toastEl = document.getElementById('toast');
+
+        // Stateful copy so we can save without re-reading DOM
+        let state = { date: dateEl.value, roster: [] };
+        let checkboxes = []; // Keep track of all checkboxes for bulk operations
+
+        function showToast(msg) {
+          toastEl.textContent = msg;
+          toastEl.style.display = 'block';
+          setTimeout(() => (toastEl.style.display = 'none'), 2000);
+        }
+
+        function showError(msg) {
+          listEl.innerHTML = `<div class="error">${msg}</div>`;
+        }
+
+        function showLoading() {
+          listEl.innerHTML = '<div class="loading">Loading roster...</div>';
+        }
+
+        function load(dateStr) {
+          if (!dateStr) return;
+          showLoading();
+          
+          google.script.run
+            .withSuccessHandler(render)
+            .withFailureHandler(err => {
+              console.error('Load failed:', err);
+              showError('Failed to load roster. Please try again.');
+            })
+            .api_getRosterAndAttendance(dateStr);
+        }
+
+        function render(payload) {
+          if (!payload || !payload.roster) {
+            showError('No data received from server');
+            return;
+          }
+
+          state.date = payload.date;
+          state.roster = payload.roster.slice(); // copy
+          checkboxes = []; // Reset checkbox tracking
+          listEl.innerHTML = '';
+
+          if (state.roster.length === 0) {
+            listEl.innerHTML = '<div class="loading">No swimmers found in roster</div>';
+            return;
+          }
+
+          // We already get sorted order from server.
+          // Create group headings when level/gender changes: Varsity M/F → JV M/F
+          let lastGroup = '';
+          state.roster.forEach((r, i) => {
+            const group = `${r.level || 'Unknown'} ${r.gender || '?'}`;
+            if (group !== lastGroup) {
+              const gt = document.createElement('div');
+              gt.className = 'groupTitle';
+              gt.textContent = group;
+              listEl.appendChild(gt);
+              lastGroup = group;
+            }
+
+            const row = document.createElement('div');
+            row.className = 'row';
+
+            const name = document.createElement('div');
+            name.className = 'name';
+            name.textContent = r.name || 'Unknown';
+
+            const tag = document.createElement('div');
+            tag.className = 'tag';
+            tag.textContent = r.level || '';
+
+            const chk = document.createElement('input');
+            chk.type = 'checkbox';
+            chk.className = 'chk';
+            chk.checked = !!r.present;
+            chk.addEventListener('change', () => {
+              r.present = chk.checked;
+            });
+
+            // Track checkbox for bulk operations
+            checkboxes.push({ checkbox: chk, roster: r });
+
+            row.appendChild(name);
+            row.appendChild(tag);
+            row.appendChild(chk);
+            listEl.appendChild(row);
+          });
+
+          showToast(`Loaded ${state.roster.length} swimmers`);
+        }
+
+        function save() {
+          if (!state.roster || state.roster.length === 0) {
+            showToast('No data to save');
+            return;
+          }
+
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Saving...';
+
+          // Minimal payload
+          const payload = state.roster.map(r => ({
+            name: r.name,
+            level: r.level,
+            gender: r.gender,
+            present: !!r.present,
+          }));
+
+          google.script.run
+            .withSuccessHandler(result => {
+              saveBtn.disabled = false;
+              saveBtn.textContent = 'Save';
+              showToast(`Saved attendance for ${payload.length} swimmers`);
+            })
+            .withFailureHandler(err => {
+              console.error('Save failed:', err);
+              saveBtn.disabled = false;
+              saveBtn.textContent = 'Save';
+              showToast('Save failed. Please try again.');
+            })
+            .api_saveAttendanceWithUserInfo(state.date, payload, USER_AGENT);
+        }
+
+        function selectAll() {
+          checkboxes.forEach(item => {
+            item.checkbox.checked = true;
+            item.roster.present = true;
+          });
+          showToast('All swimmers marked present');
+        }
+
+        function selectNone() {
+          checkboxes.forEach(item => {
+            item.checkbox.checked = false;
+            item.roster.present = false;
+          });
+          showToast('All swimmers marked absent');
+        }
+
+        // Events
+        dateEl.addEventListener('change', () => {
+          const d = dateEl.value;
+          if (!d) return;
+          load(d);
+        });
+        
+        saveBtn.addEventListener('click', save);
+        selectAllBtn.addEventListener('click', selectAll);
+        selectNoneBtn.addEventListener('click', selectNone);
+
+        // Initial load
+        load(dateEl.value);
+      })();
+    </script>
+  </body>
+</html>
