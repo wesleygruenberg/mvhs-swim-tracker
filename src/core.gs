@@ -4119,9 +4119,9 @@ function createAttendanceSummary() {
 
   // Query to aggregate attendance by swimmer and week
   summary.getRange('A5').setFormula(`
-=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A2:H,
-  "select B, D, WEEKNUM(A), count(C) 
-   where C = true 
+=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A:H,
+  "select B, D, WEEKNUM(A), count(B) 
+   where C = TRUE 
    group by B, D, WEEKNUM(A)
    order by D, B, WEEKNUM(A)",
   0
@@ -4131,8 +4131,8 @@ function createAttendanceSummary() {
   // Alternative query to show all data for debugging
   summary.getRange('G4').setValue('Debug: All Attendance Data').setFontWeight('bold');
   summary.getRange('G5').setFormula(`
-=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A2:H,
-  "select B, D, A, C limit 10",
+=QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A:H,
+  "select B, D, A, C where C = TRUE limit 10",
   0
 )
   `.trim());
