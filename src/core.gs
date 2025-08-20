@@ -1506,14 +1506,46 @@ function generateRelayAssignments() {
     console.log(`Found ${swimmers.length} swimmers:`);
     swimmers.forEach(s => console.log(`${s.name}: ${s.gender}, ${s.level}`));
 
-    // Get or create Results sheet
+    // Check for existing relay assignments and warn user
     let resultsSheet = ss.getSheetByName('Relay Assignments');
+    let hasExistingAssignments = false;
+    
+    if (resultsSheet) {
+      const data = resultsSheet.getDataRange().getValues();
+      hasExistingAssignments = data.length > 1; // More than just headers
+      
+      if (hasExistingAssignments) {
+        const response = SpreadsheetApp.getUi().alert(
+          'Overwrite Existing Assignments?',
+          'You already have relay assignments. This will:\n\n' +
+          '• Create a backup copy in "Relay Assignments Backup"\n' +
+          '• Overwrite your current assignments with new smart assignments\n\n' +
+          'Do you want to continue?',
+          SpreadsheetApp.getUi().ButtonSet.YES_NO
+        );
+        
+        if (response === SpreadsheetApp.getUi().Button.NO) {
+          return; // User cancelled
+        }
+        
+        // Create backup before overwriting
+        createRelayAssignmentsBackup_(ss, resultsSheet);
+      }
+    }
+
+    // Get or create Results sheet
     if (!resultsSheet) {
       resultsSheet = ss.insertSheet('Relay Assignments');
     } else {
       resultsSheet.clear();
     }
 
+    // Add instruction note at the top
+    const instructionText = '💡 After making manual changes to assignments, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.';
+    resultsSheet.getRange(1, 1).setValue(instructionText);
+    resultsSheet.getRange(1, 1, 1, 13).merge();
+    resultsSheet.getRange(1, 1).setBackground('#e3f2fd').setFontStyle('italic').setWrap(true);
+    
     // Set up headers
     const headers = [
       'Event',
@@ -1530,10 +1562,10 @@ function generateRelayAssignments() {
       'Total Time',
       'Notes',
     ];
-    resultsSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    resultsSheet.getRange(2, 1, 1, headers.length).setValues([headers]);
 
     // Format headers
-    const headerRange = resultsSheet.getRange(1, 1, 1, headers.length);
+    const headerRange = resultsSheet.getRange(2, 1, 1, headers.length);
     headerRange.setBackground('#0d47a1');
     headerRange.setFontColor('#ffffff');
     headerRange.setFontWeight('bold');
@@ -1541,7 +1573,7 @@ function generateRelayAssignments() {
     // Track swimmer assignments (max 4 relays per swimmer)
     const swimmerAssignments = new Map(); // swimmer name -> array of relay assignments
     const relayResults = [];
-    let currentRow = 2;
+    let currentRow = 3; // Start from row 3 now since we added instruction row
 
     // Process each relay configuration
     for (const config of relayConfigs) {
@@ -1698,14 +1730,14 @@ function generateRelayAssignments() {
     // Write results to sheet
     if (relayResults.length > 0) {
       resultsSheet
-        .getRange(2, 1, relayResults.length, headers.length)
+        .getRange(3, 1, relayResults.length, headers.length)
         .setValues(relayResults);
 
       // Apply dropdowns and formatting
       setupRelayDropdownsAndValidation_(
         resultsSheet,
         swimmers,
-        relayResults.length + 1
+        relayResults.length + 2 // +2 to account for instruction row and header row
       );
     }
 
@@ -1722,7 +1754,8 @@ function generateRelayAssignments() {
         `• Red highlighting: same relay conflicts\n` +
         `• Orange highlighting: >4 total relay violations\n\n` +
         `Swimmers with fewer current relays are prioritized for new assignments.\n` +
-        `Use dropdowns to manually adjust assignments as needed!`,
+        `Use dropdowns to manually adjust assignments as needed!\n\n` +
+        `💡 Tip: After making changes, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary with your manual edits.`,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
 
@@ -2118,6 +2151,121 @@ function createSwimmerAssignmentSummary_(ss, swimmerAssignments) {
 }
 
 /**
+ * Refresh swimmer assignment summary from existing Relay Assignments sheet
+ */
+function refreshSwimmerAssignmentSummary() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  
+  try {
+    // Check if Relay Assignments sheet exists
+    const relaySheet = ss.getSheetByName('Relay Assignments');
+    if (!relaySheet) {
+      SpreadsheetApp.getUi().alert(
+        'No Relay Assignments Found',
+        'Please generate relay assignments first using "Generate Smart Relay Assignments".',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+
+    // Get relay assignments data
+    const data = relaySheet.getDataRange().getValues();
+    if (data.length <= 2) { // Need at least instruction row, header row, and one data row
+      SpreadsheetApp.getUi().alert(
+        'Empty Relay Assignments',
+        'The Relay Assignments sheet appears to be empty. Please generate assignments first.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+
+    // Parse relay assignments to rebuild swimmer assignments map
+    const swimmerAssignments = new Map();
+    const headers = data[1]; // Headers are now in row 2 (index 1)
+    
+    // Find column indices for swimmer positions
+    const leg1Index = headers.indexOf('Leg 1');
+    const leg2Index = headers.indexOf('Leg 2');
+    const leg3Index = headers.indexOf('Leg 3');
+    const leg4Index = headers.indexOf('Leg 4 (Anchor)');
+    const eventIndex = headers.indexOf('Event');
+    const levelIndex = headers.indexOf('Level');
+    const genderIndex = headers.indexOf('Gender');
+
+    // Process each relay assignment row
+    for (let i = 2; i < data.length; i++) { // Start from row 3 (index 2) due to instruction row
+      const row = data[i];
+      const event = row[eventIndex];
+      const level = row[levelIndex];
+      const gender = row[genderIndex];
+      
+      if (!event) continue; // Skip empty rows
+      
+      const relayName = `${event} (${level} ${gender})`;
+      
+      // Add each swimmer to their assignments
+      [leg1Index, leg2Index, leg3Index, leg4Index].forEach(legIndex => {
+        if (legIndex !== -1 && row[legIndex]) {
+          const swimmer = row[legIndex].toString().trim();
+          if (swimmer) {
+            if (!swimmerAssignments.has(swimmer)) {
+              swimmerAssignments.set(swimmer, []);
+            }
+            swimmerAssignments.get(swimmer).push(relayName);
+          }
+        }
+      });
+    }
+
+    // Create/update the swimmer assignment summary
+    createSwimmerAssignmentSummary_(ss, swimmerAssignments);
+
+    SpreadsheetApp.getUi().alert(
+      'Summary Refreshed!',
+      `Swimmer Assignment Summary has been refreshed with ${swimmerAssignments.size} swimmers.`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+
+    console.log(`Refreshed swimmer assignment summary with ${swimmerAssignments.size} swimmers`);
+  } catch (e) {
+    SpreadsheetApp.getUi().alert(
+      'Error',
+      `Failed to refresh swimmer assignment summary: ${e.message}`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    console.error('Refresh summary error:', e);
+  }
+}
+
+/**
+ * Create backup of existing relay assignments
+ */
+function createRelayAssignmentsBackup_(ss, sourceSheet) {
+  try {
+    // Remove existing backup if it exists
+    const existingBackup = ss.getSheetByName('Relay Assignments Backup');
+    if (existingBackup) {
+      ss.deleteSheet(existingBackup);
+    }
+    
+    // Create new backup by copying the source sheet
+    const backupSheet = sourceSheet.copyTo(ss);
+    backupSheet.setName('Relay Assignments Backup');
+    
+    // Add timestamp to indicate when backup was created
+    const timestamp = new Date().toLocaleString();
+    backupSheet.insertRowBefore(1);
+    backupSheet.getRange(1, 1).setValue(`Backup created: ${timestamp}`);
+    backupSheet.getRange(1, 1).setBackground('#fff3e0').setFontStyle('italic');
+    
+    console.log('Created relay assignments backup');
+  } catch (e) {
+    console.error('Failed to create backup:', e);
+    // Don't fail the main operation if backup fails
+  }
+}
+
+/**
  * Select swimmers for a relay while respecting 4-relay maximum constraint
  */
 function selectSwimmersForRelay_(
@@ -2203,7 +2351,7 @@ function setupRelayDropdownsAndValidation_(sheet, swimmers, numRows) {
   // Set up data validation for swimmer columns (4, 6, 8, 10)
   const swimmerColumns = [4, 6, 8, 10]; // Leg 1, Leg 2, Leg 3, Leg 4
 
-  for (let row = 2; row < numRows; row++) {
+  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
     const level = sheet.getRange(row, 2).getValue();
     const gender = sheet.getRange(row, 3).getValue();
 
@@ -2267,7 +2415,7 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   const rules = [];
 
   // Red highlight for swimmers in multiple legs of same relay
-  for (let row = 2; row < numRows; row++) {
+  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
     const swimmerColumns = [4, 6, 8, 10]; // Leg columns
 
     swimmerColumns.forEach((col, index) => {
@@ -2292,11 +2440,11 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   // This is more complex - we'll use a custom function approach
   const swimmerColumns = [4, 6, 8, 10]; // Leg columns
 
-  for (let row = 2; row < numRows; row++) {
+  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
     swimmerColumns.forEach(col => {
       // Create a formula that counts how many times this swimmer appears in the entire sheet
       const cellRef = sheet.getRange(row, col).getA1Notation();
-      const formula = `=AND(${cellRef}<>"", COUNTIF(D2:D1000,${cellRef})+COUNTIF(F2:F1000,${cellRef})+COUNTIF(H2:H1000,${cellRef})+COUNTIF(J2:J1000,${cellRef})>4)`;
+      const formula = `=AND(${cellRef}<>"", COUNTIF(D3:D1000,${cellRef})+COUNTIF(F3:F1000,${cellRef})+COUNTIF(H3:H1000,${cellRef})+COUNTIF(J3:J1000,${cellRef})>4)`;
 
       const rule = SpreadsheetApp.newConditionalFormatRule()
         .whenFormulaSatisfied(formula)
@@ -2311,10 +2459,10 @@ function setupRelayValidationFormatting_(sheet, numRows) {
 
   sheet.setConditionalFormatRules(rules);
 
-  // Add note about validation
-  const noteRange = sheet.getRange(1, 14); // Column N
+  // Add note about validation in the instruction row
+  const noteRange = sheet.getRange(1, 14); // Column N, row 1
   noteRange.setValue(
-    'Validation: Red = same relay conflict, Orange = >4 relay limit'
+    'Red = same relay conflict, Orange = >4 relay limit'
   );
   noteRange.setFontSize(10);
   noteRange.setFontColor('#666666');
@@ -3343,6 +3491,10 @@ function setupCoachToolsMenu() {
           '🏊‍♀️ Generate Smart Relay Assignments',
           'generateRelayAssignments'
         )
+        .addItem(
+          '📊 Refresh Swimmer Assignment Summary',
+          'refreshSwimmerAssignmentSummary'
+        )
         .addSeparator()
         .addItem(
           'Generate Roster Rankings from CSV',
@@ -4087,13 +4239,21 @@ function createAttendanceSummary() {
   // Check if Master Attendance sheet exists and has data
   const masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER_ATTENDANCE);
   if (!masterSheet) {
-    summary.getRange('A1').setValue('Error: Master Attendance sheet not found. Please create attendance data first.');
+    summary
+      .getRange('A1')
+      .setValue(
+        'Error: Master Attendance sheet not found. Please create attendance data first.'
+      );
     return;
   }
 
   const dataRange = masterSheet.getDataRange();
   if (!dataRange || dataRange.getNumRows() < 2) {
-    summary.getRange('A1').setValue('No attendance data found. Please add some attendance records first.');
+    summary
+      .getRange('A1')
+      .setValue(
+        'No attendance data found. Please add some attendance records first.'
+      );
     return;
   }
 
@@ -4105,20 +4265,19 @@ function createAttendanceSummary() {
     .setFontSize(14);
 
   // Debug info
-  summary.getRange('A2').setValue(`Data source: ${SHEET_NAMES.MASTER_ATTENDANCE} (${dataRange.getNumRows()-1} records)`);
+  summary
+    .getRange('A2')
+    .setValue(
+      `Data source: ${SHEET_NAMES.MASTER_ATTENDANCE} (${dataRange.getNumRows() - 1} records)`
+    );
 
   // Weekly data aggregation using QUERY
-  const headers = [
-    'Swimmer',
-    'Team',
-    'Week',
-    'Practices',
-    'Meets Requirement'
-  ];
+  const headers = ['Swimmer', 'Team', 'Week', 'Practices', 'Meets Requirement'];
   summary.getRange('A4:E4').setValues([headers]).setFontWeight('bold');
 
   // Query to aggregate attendance by swimmer and week
-  summary.getRange('A5').setFormula(`
+  summary.getRange('A5').setFormula(
+    `
 =QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A:H,
   "select B, D, WEEKNUM(A), count(B) 
    where C = TRUE or E = TRUE
@@ -4126,16 +4285,22 @@ function createAttendanceSummary() {
    order by D, B, WEEKNUM(A)",
   0
 )
-  `.trim());
+  `.trim()
+  );
 
   // Alternative query to show all data for debugging
-  summary.getRange('G4').setValue('Debug: All Attendance Data').setFontWeight('bold');
-  summary.getRange('G5').setFormula(`
+  summary
+    .getRange('G4')
+    .setValue('Debug: All Attendance Data')
+    .setFontWeight('bold');
+  summary.getRange('G5').setFormula(
+    `
 =QUERY('${SHEET_NAMES.MASTER_ATTENDANCE}'!A:H,
   "select B, D, A, C where C = TRUE limit 10",
   0
 )
-  `.trim());
+  `.trim()
+  );
 
   // Meets requirement column (✅ if >= 3, ❌ if < 3)
   summary.getRange('E5').setFormula('=IF(D5>=3,"✅","❌")');
@@ -4144,30 +4309,42 @@ function createAttendanceSummary() {
   summary.getRange('E5:E50').setFormula('=IF(D5:D50>=3,"✅","❌")');
 
   // Team-level compliance metrics
-  summary.getRange('A52').setValue('Team Compliance Metrics').setFontWeight('bold').setFontSize(12);
+  summary
+    .getRange('A52')
+    .setValue('Team Compliance Metrics')
+    .setFontWeight('bold')
+    .setFontSize(12);
 
   // Create simplified metrics for now
   summary.getRange('A54').setValue('Varsity Team').setFontWeight('bold');
   summary.getRange('A55').setValue('% Meeting 3x/week:');
-  summary.getRange('B55').setFormula(`
+  summary.getRange('B55').setFormula(
+    `
 =ROUND(COUNTIFS(B:B,"Varsity",E:E,"✅") / COUNTIF(B:B,"Varsity") * 100, 1) & "%"
-  `.trim());
+  `.trim()
+  );
 
   summary.getRange('A56').setValue('Avg practices/week:');
-  summary.getRange('B56').setFormula(`
+  summary.getRange('B56').setFormula(
+    `
 =ROUND(AVERAGEIF(B:B,"Varsity",D:D), 1)
-  `.trim());
+  `.trim()
+  );
 
   summary.getRange('A58').setValue('JV Team').setFontWeight('bold');
   summary.getRange('A59').setValue('% Meeting 3x/week:');
-  summary.getRange('B59').setFormula(`
+  summary.getRange('B59').setFormula(
+    `
 =ROUND(COUNTIFS(B:B,"JV",E:E,"✅") / COUNTIF(B:B,"JV") * 100, 1) & "%"
-  `.trim());
+  `.trim()
+  );
 
   summary.getRange('A60').setValue('Avg practices/week:');
-  summary.getRange('B60').setFormula(`
+  summary.getRange('B60').setFormula(
+    `
 =ROUND(AVERAGEIF(B:B,"JV",D:D), 1)
-  `.trim());
+  `.trim()
+  );
 
   // Format and resize
   summary.setFrozenRows(4);
@@ -4177,39 +4354,150 @@ function createAttendanceSummary() {
 function createTestAttendanceData() {
   const ss = SpreadsheetApp.getActive();
   let masterSheet = ss.getSheetByName(SHEET_NAMES.MASTER_ATTENDANCE);
-  
+
   if (!masterSheet) {
     masterSheet = ss.insertSheet(SHEET_NAMES.MASTER_ATTENDANCE);
     // Add headers
-    const headers = ['Date', 'Name', 'Present', 'Excused', 'Level', 'Gender', 'Timestamp', 'UpdatedBy', 'Source'];
+    const headers = [
+      'Date',
+      'Name',
+      'Present',
+      'Excused',
+      'Level',
+      'Gender',
+      'Timestamp',
+      'UpdatedBy',
+      'Source',
+    ];
     masterSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
   }
-  
+
   // Add some test data
   const testData = [
-    ['2025-08-12', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-12', 'Bob Smith', true, false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-12', 'Carol Davis', false, true, 'JV', 'F', new Date().toISOString(), 'test', 'test'], // Excused
-    ['2025-08-14', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-14', 'Bob Smith', true, false, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-14', 'Carol Davis', true, false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-16', 'Alice Johnson', true, false, 'Varsity', 'F', new Date().toISOString(), 'test', 'test'],
-    ['2025-08-16', 'Bob Smith', false, true, 'Varsity', 'M', new Date().toISOString(), 'test', 'test'], // Excused
-    ['2025-08-16', 'Carol Davis', true, false, 'JV', 'F', new Date().toISOString(), 'test', 'test'],
+    [
+      '2025-08-12',
+      'Alice Johnson',
+      true,
+      false,
+      'Varsity',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-12',
+      'Bob Smith',
+      true,
+      false,
+      'Varsity',
+      'M',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-12',
+      'Carol Davis',
+      false,
+      true,
+      'JV',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ], // Excused
+    [
+      '2025-08-14',
+      'Alice Johnson',
+      true,
+      false,
+      'Varsity',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-14',
+      'Bob Smith',
+      true,
+      false,
+      'Varsity',
+      'M',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-14',
+      'Carol Davis',
+      true,
+      false,
+      'JV',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-16',
+      'Alice Johnson',
+      true,
+      false,
+      'Varsity',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
+    [
+      '2025-08-16',
+      'Bob Smith',
+      false,
+      true,
+      'Varsity',
+      'M',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ], // Excused
+    [
+      '2025-08-16',
+      'Carol Davis',
+      true,
+      false,
+      'JV',
+      'F',
+      new Date().toISOString(),
+      'test',
+      'test',
+    ],
   ];
-  
+
   const startRow = masterSheet.getLastRow() + 1;
-  masterSheet.getRange(startRow, 1, testData.length, testData[0].length).setValues(testData);
-  
-  SpreadsheetApp.getUi().alert('Test attendance data added! Now try creating the attendance summary again.');
+  masterSheet
+    .getRange(startRow, 1, testData.length, testData[0].length)
+    .setValues(testData);
+
+  SpreadsheetApp.getUi().alert(
+    'Test attendance data added! Now try creating the attendance summary again.'
+  );
 }
 
 function createAttendanceCharts(summary) {
   // For now, let's skip the complex charts and focus on getting the basic data working
   // We can add charts back once we confirm the QUERY is working
-  
-  summary.getRange('J1').setValue('Charts will be added once data is confirmed working').setFontWeight('bold');
-  summary.getRange('J2').setValue('Debug: If you see swimmer data in columns A-E, charts can be enabled');
+
+  summary
+    .getRange('J1')
+    .setValue('Charts will be added once data is confirmed working')
+    .setFontWeight('bold');
+  summary
+    .getRange('J2')
+    .setValue(
+      'Debug: If you see swimmer data in columns A-E, charts can be enabled'
+    );
 }
 
 function buildCoachPacket() {
