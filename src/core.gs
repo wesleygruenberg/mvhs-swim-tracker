@@ -1509,25 +1509,25 @@ function generateRelayAssignments() {
     // Check for existing relay assignments and warn user
     let resultsSheet = ss.getSheetByName('Relay Assignments');
     let hasExistingAssignments = false;
-    
+
     if (resultsSheet) {
       const data = resultsSheet.getDataRange().getValues();
       hasExistingAssignments = data.length > 1; // More than just headers
-      
+
       if (hasExistingAssignments) {
         const response = SpreadsheetApp.getUi().alert(
           'Overwrite Existing Assignments?',
           'You already have relay assignments. This will:\n\n' +
-          '• Create a backup copy in "Relay Assignments Backup"\n' +
-          '• Overwrite your current assignments with new smart assignments\n\n' +
-          'Do you want to continue?',
+            '• Create a backup copy in "Relay Assignments Backup"\n' +
+            '• Overwrite your current assignments with new smart assignments\n\n' +
+            'Do you want to continue?',
           SpreadsheetApp.getUi().ButtonSet.YES_NO
         );
-        
+
         if (response === SpreadsheetApp.getUi().Button.NO) {
           return; // User cancelled
         }
-        
+
         // Create backup before overwriting
         createRelayAssignmentsBackup_(ss, resultsSheet);
       }
@@ -1541,11 +1541,16 @@ function generateRelayAssignments() {
     }
 
     // Add instruction note at the top
-    const instructionText = '💡 After making manual changes to assignments, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.';
+    const instructionText =
+      '💡 After making manual changes to assignments, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.';
     resultsSheet.getRange(1, 1).setValue(instructionText);
     resultsSheet.getRange(1, 1, 1, 13).merge();
-    resultsSheet.getRange(1, 1).setBackground('#e3f2fd').setFontStyle('italic').setWrap(true);
-    
+    resultsSheet
+      .getRange(1, 1)
+      .setBackground('#e3f2fd')
+      .setFontStyle('italic')
+      .setWrap(true);
+
     // Set up headers
     const headers = [
       'Event',
@@ -2155,7 +2160,7 @@ function createSwimmerAssignmentSummary_(ss, swimmerAssignments) {
  */
 function refreshSwimmerAssignmentSummary() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
-  
+
   try {
     // Check if Relay Assignments sheet exists
     const relaySheet = ss.getSheetByName('Relay Assignments');
@@ -2170,7 +2175,8 @@ function refreshSwimmerAssignmentSummary() {
 
     // Get relay assignments data
     const data = relaySheet.getDataRange().getValues();
-    if (data.length <= 2) { // Need at least instruction row, header row, and one data row
+    if (data.length <= 2) {
+      // Need at least instruction row, header row, and one data row
       SpreadsheetApp.getUi().alert(
         'Empty Relay Assignments',
         'The Relay Assignments sheet appears to be empty. Please generate assignments first.',
@@ -2182,7 +2188,7 @@ function refreshSwimmerAssignmentSummary() {
     // Parse relay assignments to rebuild swimmer assignments map
     const swimmerAssignments = new Map();
     const headers = data[1]; // Headers are now in row 2 (index 1)
-    
+
     // Find column indices for swimmer positions
     const leg1Index = headers.indexOf('Leg 1');
     const leg2Index = headers.indexOf('Leg 2');
@@ -2193,16 +2199,17 @@ function refreshSwimmerAssignmentSummary() {
     const genderIndex = headers.indexOf('Gender');
 
     // Process each relay assignment row
-    for (let i = 2; i < data.length; i++) { // Start from row 3 (index 2) due to instruction row
+    for (let i = 2; i < data.length; i++) {
+      // Start from row 3 (index 2) due to instruction row
       const row = data[i];
       const event = row[eventIndex];
       const level = row[levelIndex];
       const gender = row[genderIndex];
-      
+
       if (!event) continue; // Skip empty rows
-      
+
       const relayName = `${event} (${level} ${gender})`;
-      
+
       // Add each swimmer to their assignments
       [leg1Index, leg2Index, leg3Index, leg4Index].forEach(legIndex => {
         if (legIndex !== -1 && row[legIndex]) {
@@ -2226,7 +2233,9 @@ function refreshSwimmerAssignmentSummary() {
       SpreadsheetApp.getUi().ButtonSet.OK
     );
 
-    console.log(`Refreshed swimmer assignment summary with ${swimmerAssignments.size} swimmers`);
+    console.log(
+      `Refreshed swimmer assignment summary with ${swimmerAssignments.size} swimmers`
+    );
   } catch (e) {
     SpreadsheetApp.getUi().alert(
       'Error',
@@ -2247,17 +2256,17 @@ function createRelayAssignmentsBackup_(ss, sourceSheet) {
     if (existingBackup) {
       ss.deleteSheet(existingBackup);
     }
-    
+
     // Create new backup by copying the source sheet
     const backupSheet = sourceSheet.copyTo(ss);
     backupSheet.setName('Relay Assignments Backup');
-    
+
     // Add timestamp to indicate when backup was created
     const timestamp = new Date().toLocaleString();
     backupSheet.insertRowBefore(1);
     backupSheet.getRange(1, 1).setValue(`Backup created: ${timestamp}`);
     backupSheet.getRange(1, 1).setBackground('#fff3e0').setFontStyle('italic');
-    
+
     console.log('Created relay assignments backup');
   } catch (e) {
     console.error('Failed to create backup:', e);
@@ -2351,7 +2360,8 @@ function setupRelayDropdownsAndValidation_(sheet, swimmers, numRows) {
   // Set up data validation for swimmer columns (4, 6, 8, 10)
   const swimmerColumns = [4, 6, 8, 10]; // Leg 1, Leg 2, Leg 3, Leg 4
 
-  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
+  for (let row = 3; row <= numRows; row++) {
+    // Start from row 3 due to instruction row
     const level = sheet.getRange(row, 2).getValue();
     const gender = sheet.getRange(row, 3).getValue();
 
@@ -2415,7 +2425,8 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   const rules = [];
 
   // Red highlight for swimmers in multiple legs of same relay
-  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
+  for (let row = 3; row <= numRows; row++) {
+    // Start from row 3 due to instruction row
     const swimmerColumns = [4, 6, 8, 10]; // Leg columns
 
     swimmerColumns.forEach((col, index) => {
@@ -2440,7 +2451,8 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   // This is more complex - we'll use a custom function approach
   const swimmerColumns = [4, 6, 8, 10]; // Leg columns
 
-  for (let row = 3; row <= numRows; row++) { // Start from row 3 due to instruction row
+  for (let row = 3; row <= numRows; row++) {
+    // Start from row 3 due to instruction row
     swimmerColumns.forEach(col => {
       // Create a formula that counts how many times this swimmer appears in the entire sheet
       const cellRef = sheet.getRange(row, col).getA1Notation();
@@ -2461,9 +2473,7 @@ function setupRelayValidationFormatting_(sheet, numRows) {
 
   // Add note about validation in the instruction row
   const noteRange = sheet.getRange(1, 14); // Column N, row 1
-  noteRange.setValue(
-    'Red = same relay conflict, Orange = >4 relay limit'
-  );
+  noteRange.setValue('Red = same relay conflict, Orange = >4 relay limit');
   noteRange.setFontSize(10);
   noteRange.setFontColor('#666666');
 }

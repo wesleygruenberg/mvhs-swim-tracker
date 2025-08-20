@@ -27,17 +27,22 @@ The Google Sheets mobile app **does not support custom menus or sidebars**. Whil
    - Option A: Paste the URL into `getWebAppUrl_()` function in `setupSheet.gs`
    - Option B: Store via Script Properties:
      ```javascript
-     PropertiesService.getScriptProperties().setProperty('ATTENDANCE_WEB_APP_URL', 'your-url-here');
+     PropertiesService.getScriptProperties().setProperty(
+       'ATTENDANCE_WEB_APP_URL',
+       'your-url-here'
+     );
      ```
 
 ## Using the Web App
 
 ### For Coaches (Desktop)
+
 - Use the **Attendance** menu in Google Sheets
 - Click **"📋 Open Attendance Tracker (Sidebar)"** for the familiar sidebar
 - Click **"🔗 Show Web App Link"** to get the mobile URL
 
 ### For Mobile Users
+
 - Open the web app URL in your mobile browser
 - **Add to Home Screen** for one-tap access:
   - **iOS Safari**: Tap share button → "Add to Home Screen"
@@ -46,6 +51,7 @@ The Google Sheets mobile app **does not support custom menus or sidebars**. Whil
 ## Features
 
 Both sidebar and web app versions include:
+
 - ✅ Date selector (defaults to today)
 - ✅ Roster sorted by: Varsity M/F → JV M/F → Name
 - ✅ Bulk select All/None buttons
@@ -56,17 +62,20 @@ Both sidebar and web app versions include:
 ## Technical Details
 
 ### Data Flow
+
 - **Reads from**: "Swimmers" sheet (Name, Level, Gender)
 - **Writes to**: "Master Attendance" sheet (auto-created if missing)
 - **Key**: `(Date, Name)` pairs for upsert logic
 
 ### Mobile Optimizations
+
 - Touch-friendly 52px row height
 - Sticky header with date/save controls
 - Responsive design for phone screens
 - No external dependencies
 
 ### Security
+
 - Web app executes as the sheet owner
 - Data stays within your Google account
 - No external API calls or data sharing
@@ -74,21 +83,25 @@ Both sidebar and web app versions include:
 ## Troubleshooting
 
 ### "Script function not found" Error
+
 - Ensure you've pushed the latest code with `clasp push`
 - Check that functions are properly defined in `setupSheet.gs`
 
 ### Web App Not Loading
+
 - Verify deployment is active and published
 - Check execution permissions and sharing settings
 - Try opening in incognito/private mode
 
 ### Mobile Menu Not Showing
+
 - This is expected - use the web app URL instead
 - Google Sheets mobile app doesn't support custom menus
 
 ## Support
 
 If you encounter issues:
+
 1. Check the Apps Script logs for errors
 2. Verify the "Swimmers" sheet has the expected columns
 3. Ensure deployment permissions are correctly set

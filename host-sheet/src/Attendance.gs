@@ -43,7 +43,9 @@ function getRosterSorted() {
   // Normalize gender and level values
   rows.forEach(r => {
     // Normalize gender (M/Male -> M, F/Female -> F)
-    const genderStr = String(r.gender || '').toUpperCase().trim();
+    const genderStr = String(r.gender || '')
+      .toUpperCase()
+      .trim();
     if (genderStr === 'MALE' || genderStr === 'M') {
       r.gender = 'M';
     } else if (genderStr === 'FEMALE' || genderStr === 'F') {
@@ -51,7 +53,9 @@ function getRosterSorted() {
     }
 
     // Normalize level (V -> Varsity, JV -> JV)
-    const levelStr = String(r.level || '').toUpperCase().trim();
+    const levelStr = String(r.level || '')
+      .toUpperCase()
+      .trim();
     if (levelStr === 'V' || levelStr === 'VARSITY') {
       r.level = 'Varsity';
     } else if (levelStr === 'JV') {
@@ -60,9 +64,10 @@ function getRosterSorted() {
   });
 
   // Filter out any with invalid gender/level after normalization
-  const validRows = rows.filter(x => 
-    (x.gender === 'M' || x.gender === 'F') && 
-    (x.level === 'Varsity' || x.level === 'JV')
+  const validRows = rows.filter(
+    x =>
+      (x.gender === 'M' || x.gender === 'F') &&
+      (x.level === 'Varsity' || x.level === 'JV')
   );
 
   // Sorting: Varsity → JV; M → F; Name asc
@@ -196,7 +201,7 @@ function ensureAttendanceHeader(sh) {
     const ss = SpreadsheetApp.getActive();
     sh = ss.insertSheet(SHEET_NAMES_ATTENDANCE.attendance);
   }
-  
+
   const lastCol = sh.getLastColumn();
   if (lastCol === 0) {
     // Sheet is empty, add headers
@@ -212,7 +217,7 @@ function ensureAttendanceHeader(sh) {
     sh.getRange(1, 1, 1, want.length).setValues([want]);
     return;
   }
-  
+
   const header = sh.getRange(1, 1, 1, lastCol).getValues()[0];
   const want = [
     ATTEND_HEADERS.date,
@@ -270,8 +275,8 @@ function api_getRosterAndAttendance(yyyy_mm_dd) {
     name: r.name,
     level: r.level,
     gender: r.gender,
-    present: !!(attendanceByName[r.name]?.present),
-    excused: !!(attendanceByName[r.name]?.excused),
+    present: !!attendanceByName[r.name]?.present,
+    excused: !!attendanceByName[r.name]?.excused,
   }));
   return { date: yyyy_mm_dd, roster: merged };
 }
