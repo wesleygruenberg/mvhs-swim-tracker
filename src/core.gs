@@ -2175,8 +2175,7 @@ function refreshSwimmerAssignmentSummary() {
 
     // Get relay assignments data
     const data = relaySheet.getDataRange().getValues();
-    if (data.length <= 2) {
-      // Need at least instruction row, header row, and one data row
+    if (data.length <= 1) {
       SpreadsheetApp.getUi().alert(
         'Empty Relay Assignments',
         'The Relay Assignments sheet appears to be empty. Please generate assignments first.',
@@ -2187,7 +2186,9 @@ function refreshSwimmerAssignmentSummary() {
 
     // Parse relay assignments to rebuild swimmer assignments map
     const swimmerAssignments = new Map();
-    const headers = data[1]; // Headers are now in row 2 (index 1)
+    const headers = data[0]; // Headers are in the first row
+
+    console.log('Headers found:', headers);
 
     // Find column indices for swimmer positions
     const leg1Index = headers.indexOf('Leg 1');
@@ -2198,9 +2199,19 @@ function refreshSwimmerAssignmentSummary() {
     const levelIndex = headers.indexOf('Level');
     const genderIndex = headers.indexOf('Gender');
 
-    // Process each relay assignment row
-    for (let i = 2; i < data.length; i++) {
-      // Start from row 3 (index 2) due to instruction row
+    console.log('Column indices:', { leg1Index, leg2Index, leg3Index, leg4Index, eventIndex, levelIndex, genderIndex });
+
+    if (leg1Index === -1 || eventIndex === -1) {
+      SpreadsheetApp.getUi().alert(
+        'Invalid Sheet Format',
+        'The Relay Assignments sheet format is not recognized. Please regenerate assignments.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+
+    // Process each relay assignment row (starting from row 2, index 1)
+    for (let i = 1; i < data.length; i++) {
       const row = data[i];
       const event = row[eventIndex];
       const level = row[levelIndex];
@@ -2214,7 +2225,7 @@ function refreshSwimmerAssignmentSummary() {
       [leg1Index, leg2Index, leg3Index, leg4Index].forEach(legIndex => {
         if (legIndex !== -1 && row[legIndex]) {
           const swimmer = row[legIndex].toString().trim();
-          if (swimmer) {
+          if (swimmer && swimmer !== '') {
             if (!swimmerAssignments.has(swimmer)) {
               swimmerAssignments.set(swimmer, []);
             }
@@ -2223,6 +2234,8 @@ function refreshSwimmerAssignmentSummary() {
         }
       });
     }
+
+    console.log('Found assignments for swimmers:', Array.from(swimmerAssignments.keys()));
 
     // Create/update the swimmer assignment summary
     createSwimmerAssignmentSummary_(ss, swimmerAssignments);
