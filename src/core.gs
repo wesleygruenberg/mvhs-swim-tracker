@@ -1723,6 +1723,8 @@ function generateRelayAssignments() {
       'Notes',
     ];
 
+    console.log('Setting headers:', headers);
+
     // Add instruction note at the top
     const instructionText =
       '💡 After making manual changes to assignments, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.';
@@ -1734,6 +1736,13 @@ function generateRelayAssignments() {
       .setFontStyle('italic')
       .setWrap(true);
     resultsSheet.getRange(2, 1, 1, headers.length).setValues([headers]);
+
+    // Verify headers were set correctly
+    const actualHeaders = resultsSheet.getRange(2, 1, 1, headers.length).getValues()[0];
+    console.log('Headers set to:', actualHeaders);
+    if (actualHeaders[0] !== 'Event') {
+      console.error('WARNING: Event header not set correctly! Expected "Event", got:', actualHeaders[0]);
+    }
 
     // Format headers
     const headerRange = resultsSheet.getRange(2, 1, 1, headers.length);
@@ -2582,6 +2591,90 @@ function refreshSwimmerAssignmentSummary() {
 /**
  * Create backup of existing relay assignments
  */
+/**
+ * Validates and fixes the Relay Assignments sheet headers if they're missing or corrupted
+ */
+function validateRelayAssignmentsHeaders() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Relay Assignments');
+  
+  if (!sheet) {
+    console.log('No Relay Assignments sheet found');
+    return false;
+  }
+
+  const expectedHeaders = [
+    'Event',
+    'Level', 
+    'Gender',
+    'Lock',
+    'Leg 1',
+    'Leg 1 Time',
+    'Leg 2',
+    'Leg 2 Time',
+    'Leg 3',
+    'Leg 3 Time',
+    'Leg 4',
+    'Leg 4 Time',
+    'Leg 5',
+    'Leg 5 Time',
+    'Leg 6',
+    'Leg 6 Time',
+    'Leg 7',
+    'Leg 7 Time',
+    'Leg 8',
+    'Leg 8 Time',
+    'Total Time',
+    'Notes',
+  ];
+
+  // Check if sheet has data
+  if (sheet.getLastRow() < 2) {
+    console.log('Relay Assignments sheet is empty');
+    return false;
+  }
+
+  // Find the header row (could be row 1 or 2 if there's an instruction row)
+  let headerRow = 1;
+  const row1 = sheet.getRange(1, 1, 1, expectedHeaders.length).getValues()[0];
+  const row2 = sheet.getRange(2, 1, 1, expectedHeaders.length).getValues()[0];
+
+  if (row1[0] === 'Event') {
+    headerRow = 1;
+  } else if (row2[0] === 'Event') {
+    headerRow = 2;
+  } else {
+    console.log('Headers need fixing - Event header not found in expected location');
+    
+    // Try to find headers by looking for "Leg 1" pattern
+    if (row1.includes('Leg 1')) {
+      headerRow = 1;
+    } else if (row2.includes('Leg 1')) {
+      headerRow = 2;
+    } else {
+      console.error('Cannot locate header row');
+      return false;
+    }
+
+    // Fix the headers
+    console.log('Fixing headers at row', headerRow);
+    sheet.getRange(headerRow, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
+    
+    const ui = SpreadsheetApp.getUi();
+    ui.alert(
+      'Headers Fixed',
+      'The "Event" header was missing from your Relay Assignments sheet and has been restored. ' +
+      'This should fix any issues with creating relay entry sheets.',
+      ui.ButtonSet.OK
+    );
+    
+    return true;
+  }
+
+  console.log('Headers are correct');
+  return true;
+}
+
 function createRelayAssignmentsBackup_(ss, sourceSheet) {
   try {
     // Remove existing backup if it exists
@@ -3876,6 +3969,11 @@ function setupCoachToolsMenu() {
         .addItem(
           '📋 Create Blank Relay Entry Sheets',
           'createBlankRelayEntrySheets'
+        )
+        .addSeparator()
+        .addItem(
+          '🔧 Validate Relay Headers',
+          'validateRelayAssignmentsHeaders'
         )
         .addSeparator()
         .addItem(
@@ -6995,6 +7093,9 @@ function createMyRelayEntrySheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   try {
+    // First, validate and fix relay assignments headers if needed
+    validateRelayAssignmentsHeaders();
+    
     // Check if Swimmers sheet exists
     const swimmersSheet = ss.getSheetByName('Swimmers');
     if (!swimmersSheet) {
@@ -7039,6 +7140,19 @@ function createMyRelayEntrySheet() {
     let relayHeaders;
     let relayDataStart = 1;
     
+    console.log('DEBUG: Relay sheet has', relayData.length, 'rows');
+    console.log('DEBUG: First row:', relayData[0]);
+    
+    // Check if sheet is empty
+    if (relayData.length === 0 || (relayData.length === 1 && relayData[0].every(cell => !cell))) {
+      SpreadsheetApp.getUi().alert(
+        'Empty Relay Assignments',
+        'The Relay Assignments sheet appears to be empty. Please run "Generate Smart Relay Assignments" first.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+    
     // Skip instruction row if present
     if (relayData[0][0] && relayData[0][0].toString().includes('💡')) {
       relayHeaders = relayData[1];
@@ -7061,11 +7175,30 @@ function createMyRelayEntrySheet() {
     
     const eventIndex = relayHeaders.findIndex(h => (h || '').toString().trim() === 'Event');
     
+    // If "Event" column not found, assume first column contains events
+    const actualEventIndex = eventIndex !== -1 ? eventIndex : 0;
+    
+    console.log('DEBUG: Found leg columns:', legColumns);
+    console.log('DEBUG: Event column index:', eventIndex);
+    console.log('DEBUG: Using event index:', actualEventIndex);
+    
+    // Check if we found the required columns
+    if (legColumns.length === 0) {
+      SpreadsheetApp.getUi().alert(
+        'Invalid Relay Assignments Sheet', 
+        'Could not find any "Leg" columns in Relay Assignments sheet. Please regenerate relay assignments.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
+    
     // Process relay assignments
     for (let i = relayDataStart; i < relayData.length; i++) {
       const row = relayData[i];
       const event = row[eventIndex];
       if (!event) continue;
+      
+      console.log('DEBUG: Processing event:', event);
       
       // Check each leg for swimmers
       legColumns.forEach(legCol => {
@@ -7095,9 +7228,8 @@ function createMyRelayEntrySheet() {
       '400 Free JV', '200 Medley Co-ed', '200 Free Frosh'
     ];
 
-    // Team name header
+    // Team name header - don't merge to avoid freeze conflicts
     entrySheet.getRange(1, 1).setValue('Team Name: Mavs');
-    entrySheet.getRange(1, 1, 1, 25).merge();
     entrySheet.getRange(1, 1).setBackground('#e3f2fd').setFontWeight('bold');
 
     // Column headers
@@ -7125,6 +7257,9 @@ function createMyRelayEntrySheet() {
       // Add X's for events this swimmer is assigned to
       relayEvents.forEach(event => {
         const hasEvent = swimmerEventMap.has(name) && swimmerEventMap.get(name).has(event);
+        if (hasEvent) {
+          console.log('DEBUG: Found match for', name, 'in event', event);
+        }
         swimmerRow.push(hasEvent ? 'X' : '');
       });
       
@@ -7233,9 +7368,8 @@ function createBlankRelayEntrySheets() {
       // Create new sheet
       sheet = ss.insertSheet(teamName);
       
-      // Team name header
+      // Team name header - don't merge to avoid freeze conflicts
       sheet.getRange(1, 1).setValue(`Team Name: ${teamName}`);
-      sheet.getRange(1, 1, 1, 25).merge();
       sheet.getRange(1, 1).setBackground('#e3f2fd').setFontWeight('bold');
 
       // Column headers
