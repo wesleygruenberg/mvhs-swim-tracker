@@ -196,6 +196,20 @@ function createMyRelayEntrySheet() {
 function createBlankRelayEntrySheets() {
   CoachToolsCore.createBlankRelayEntrySheets();
 }
+function setupTeamRelayMeetConfig() {
+  CoachToolsCore.setupTeamRelayMeetConfig();
+}
+function validateRelayAssignmentsHeaders() {
+  CoachToolsCore.validateRelayAssignmentsHeaders();
+}
+
+// Heat sheet wrapper functions
+function setupLaneAssignments() {
+  CoachToolsCore.setupLaneAssignments();
+}
+function generateRelayHeatSheet() {
+  CoachToolsCore.generateRelayHeatSheet();
+}
 
 function buildAttendanceSidebar() {
   const t = HtmlService.createTemplateFromFile('AttendanceUI');

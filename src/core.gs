@@ -3987,6 +3987,12 @@ function setupCoachToolsMenu() {
     )
     .addSubMenu(
       ui
+        .createMenu('Heat Sheets')
+        .addItem('🏊 Setup Lane Assignments', 'setupLaneAssignments')
+        .addItem('📄 Generate Relay Heat Sheet', 'generateRelayHeatSheet')
+    )
+    .addSubMenu(
+      ui
         .createMenu('Admin')
         .addItem('Ensure Settings Sheet', 'ensureSettingsSheet')
         .addItem('Apply Limits from Settings', 'applyLimitsFromSettings')
@@ -7554,6 +7560,280 @@ function createBlankRelayEntrySheets() {
     
     SpreadsheetApp.getUi().alert('Relay Entry Sheets', message, SpreadsheetApp.getUi().ButtonSet.OK);
     
+/**
+ * Creates or updates the Lane Assignments sheet based on the CSV format
+ */
+function setupLaneAssignments() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let laneSheet = ss.getSheetByName('Lane Assignments');
+  
+  if (!laneSheet) {
+    laneSheet = ss.insertSheet('Lane Assignments');
+    
+    // Set up headers based on CSV format
+    const headers = ['Event #', 'Event Name', 'CENT', 'MVHS', 'MER', 'EAGLE', 'TIMBER'];
+    laneSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    
+    // Add sample data from the CSV
+    const sampleData = [
+      [1, '200 Medley Relay', 2, 3, 4, 5, 1],
+      [2, 'JV 200 Medley Relay', 1, 4, 5, 2, 3],
+      [3, '350 Free Relay', 4, 1, 2, 3, 5],
+      [4, '200 Fly Relay', 5, 2, 3, 1, 4],
+      [5, 'JV 200 Fly Relay', 1, 3, 4, 5, 2],
+      [6, '200 Breast Relay', 3, 4, 5, 2, 1],
+      [7, 'JV 200 Breast Relay', 4, 5, 2, 1, 3],
+      [8, '200 Free Relay', 5, 1, 3, 4, 2],
+      [9, 'JV 200 Free Relay', 2, 1, 4, 5, 3],
+      [10, '400 IM Relay', 3, 4, 1, 2, 5],
+      [11, 'JV 400 IM Relay', 1, 5, 2, 3, 4],
+      [13, '200 Back Relay', 5, 2, 3, 4, 1],
+      [14, 'JV 200 Back Relay', 1, 3, 4, 5, 2],
+      [15, '400 Free Relay', 3, 4, 1, 2, 5],
+      [16, 'JV 400 Free Relay', 4, 5, 2, 1, 3],
+      [17, '200 Medley Relay Co-ed', 5, 1, 3, 4, 2],
+      [18, '200 Frosh Free Relay', 2, 3, 1, 5, 4]
+    ];
+    
+    laneSheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
+    
+    // Format headers
+    const headerRange = laneSheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground('#0d47a1');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+    
+    // Auto-resize columns
+    laneSheet.autoResizeColumns(1, headers.length);
+    
+    console.log('Created Lane Assignments sheet with sample data');
+  }
+  
+  return laneSheet;
+}
+
+/**
+ * Gets lane assignments from the Lane Assignments sheet
+ */
+function getLaneAssignments() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const laneSheet = ss.getSheetByName('Lane Assignments');
+  
+  if (!laneSheet) {
+    throw new Error('Lane Assignments sheet not found. Please run "Setup Lane Assignments" first.');
+  }
+  
+  const data = laneSheet.getDataRange().getValues();
+  const headers = data[0];
+  const assignments = [];
+  
+  // Parse lane assignments (skip header row)
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const eventNum = row[0];
+    const eventName = row[1];
+    
+    // Skip empty rows
+    if (!eventNum || !eventName) continue;
+    
+    const laneAssignment = {
+      eventNumber: eventNum,
+      eventName: eventName.toString().trim(),
+      lanes: {
+        CENT: row[2],
+        MVHS: row[3], 
+        MER: row[4],
+        EAGLE: row[5],
+        TIMBER: row[6]
+      }
+    };
+    
+    assignments.push(laneAssignment);
+  }
+  
+  return assignments;
+}
+
+/**
+ * Gets relay entries from a specific team sheet
+ */
+function getTeamRelayEntries(teamName) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const teamSheet = ss.getSheetByName(teamName);
+  
+  if (!teamSheet) {
+    console.log(`Team sheet "${teamName}" not found`);
+    return {};
+  }
+  
+  const data = teamSheet.getDataRange().getValues();
+  if (data.length < 2) {
+    console.log(`Team sheet "${teamName}" has no data`);
+    return {};
+  }
+  
+  // Find headers (skip team name header if present)
+  let headerRow = 0;
+  let headers = data[0];
+  
+  // Check if first row is team name header
+  if (headers[0] && headers[0].toString().includes('Team Name:')) {
+    headerRow = 1;
+    headers = data[1];
+  }
+  
+  const entries = {};
+  
+  // Process all swimmers
+  for (let i = headerRow + 1; i < data.length; i++) {
+    const row = data[i];
+    const swimmerName = row[0];
+    
+    // Skip empty rows or section headers
+    if (!swimmerName || swimmerName === 'Girls' || swimmerName === 'Boys') {
+      continue;
+    }
+    
+    // Check each event column for 'X' marks
+    for (let j = 2; j < headers.length && j < row.length; j++) {
+      const eventName = headers[j];
+      const isAssigned = row[j] === 'X' || row[j] === 'x';
+      
+      if (isAssigned && eventName) {
+        if (!entries[eventName]) {
+          entries[eventName] = [];
+        }
+        entries[eventName].push(swimmerName.toString().trim());
+      }
+    }
+  }
+  
+  return entries;
+}
+
+/**
+ * Generates a relay meet heat sheet and creates a Google Doc
+ */
+function generateRelayHeatSheet() {
+  try {
+    // Ensure Lane Assignments sheet exists
+    setupLaneAssignments();
+    
+    // Get lane assignments
+    const laneAssignments = getLaneAssignments();
+    
+    // Get all team entries
+    const teamNames = ['CENT', 'MVHS', 'MER', 'EAGLE', 'TIMBER'];
+    const allTeamEntries = {};
+    
+    teamNames.forEach(teamName => {
+      allTeamEntries[teamName] = getTeamRelayEntries(teamName);
+    });
+    
+    // Create Google Doc
+    const doc = DocumentApp.create('Relay Meet Heat Sheet - ' + new Date().toLocaleDateString());
+    const body = doc.getBody();
+    
+    // Document title
+    body.appendParagraph('RELAY MEET HEAT SHEET').setHeading(DocumentApp.ParagraphHeading.TITLE);
+    body.appendParagraph('Generated: ' + new Date().toLocaleString()).setAttributes({
+      [DocumentApp.Attribute.FONT_SIZE]: 10,
+      [DocumentApp.Attribute.ITALIC]: true
+    });
+    body.appendParagraph(''); // Blank line
+    
+    // Group events by heat number (based on event order)
+    const heats = [];
+    let currentHeat = [];
+    
+    laneAssignments.forEach((assignment, index) => {
+      currentHeat.push(assignment);
+      
+      // Create heat every 3-4 events or at end
+      if (currentHeat.length >= 3 || index === laneAssignments.length - 1) {
+        heats.push([...currentHeat]);
+        currentHeat = [];
+      }
+    });
+    
+    // Generate heat sheets
+    heats.forEach((heat, heatIndex) => {
+      // Heat header
+      body.appendParagraph(`HEAT ${heatIndex + 1}`).setHeading(DocumentApp.ParagraphHeading.HEADING1);
+      
+      heat.forEach(assignment => {
+        // Event header
+        body.appendParagraph(`Event ${assignment.eventNumber}: ${assignment.eventName}`)
+          .setHeading(DocumentApp.ParagraphHeading.HEADING2);
+        
+        // Create lanes table
+        const table = body.appendTable();
+        
+        // Lane headers
+        const headerRow = table.appendTableRow();
+        headerRow.appendTableCell('Lane');
+        headerRow.appendTableCell('Team');
+        headerRow.appendTableCell('Swimmers');
+        
+        // Style header row
+        for (let i = 0; i < headerRow.getNumCells(); i++) {
+          const cell = headerRow.getCell(i);
+          cell.setBackgroundColor('#e3f2fd');
+          cell.getChild(0).asText().setBold(true);
+        }
+        
+        // Sort teams by lane assignment
+        const laneOrder = [];
+        Object.entries(assignment.lanes).forEach(([team, lane]) => {
+          laneOrder.push({ team, lane: parseInt(lane) });
+        });
+        laneOrder.sort((a, b) => a.lane - b.lane);
+        
+        // Add team rows
+        laneOrder.forEach(({ team, lane }) => {
+          const row = table.appendTableRow();
+          row.appendTableCell(lane.toString());
+          row.appendTableCell(team);
+          
+          // Get swimmers for this event
+          const teamEntries = allTeamEntries[team] || {};
+          const swimmers = teamEntries[assignment.eventName] || [];
+          
+          if (swimmers.length > 0) {
+            row.appendTableCell(swimmers.join(', '));
+          } else {
+            row.appendTableCell('No entries found');
+          }
+        });
+        
+        body.appendParagraph(''); // Blank line after each event
+      });
+      
+      body.appendPageBreak(); // New page for each heat
+    });
+    
+    // Open the document
+    const url = doc.getUrl();
+    
+    SpreadsheetApp.getUi().alert(
+      'Heat Sheet Generated!',
+      `Your relay meet heat sheet has been created.\n\nDocument: ${doc.getName()}\nURL: ${url}\n\nThe document includes ${heats.length} heats with ${laneAssignments.length} events total.`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    
+    console.log('Generated heat sheet:', url);
+    return doc;
+    
+  } catch (error) {
+    console.error('Error generating heat sheet:', error);
+    SpreadsheetApp.getUi().alert(
+      'Error',
+      'Failed to generate heat sheet: ' + error.message,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  }
+}
+
   } catch (error) {
     console.error('Error creating blank relay entry sheets:', error);
     SpreadsheetApp.getUi().alert(
