@@ -3972,6 +3972,10 @@ function setupCoachToolsMenu() {
         )
         .addSeparator()
         .addItem(
+          '⚙️ Setup Team Relay Meet Config',
+          'setupTeamRelayMeetConfig'
+        )
+        .addItem(
           '🔧 Validate Relay Headers',
           'validateRelayAssignmentsHeaders'
         )
@@ -7340,13 +7344,123 @@ function createMyRelayEntrySheet() {
 }
 
 /**
- * Create 5 blank relay entry sheets for other teams
+ * Sets up or updates the Team Relay Meet Config sheet with default team configurations
+ */
+function setupTeamRelayMeetConfig() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let configSheet = ss.getSheetByName('Team Relay Meet Config');
+  
+  if (!configSheet) {
+    configSheet = ss.insertSheet('Team Relay Meet Config');
+    
+    // Set up headers
+    const headers = [
+      'Team Name',
+      'Girls Count',
+      'Boys Count'
+    ];
+    
+    configSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    
+    // Add default teams
+    const defaultTeams = [
+      ['Team 1', 30, 30],
+      ['Team 2', 30, 30],
+      ['Team 3', 30, 30],
+      ['Team 4', 30, 30],
+      ['Team 5', 30, 30]
+    ];
+    
+    configSheet.getRange(2, 1, defaultTeams.length, 3).setValues(defaultTeams);
+    
+    // Format headers
+    const headerRange = configSheet.getRange(1, 1, 1, headers.length);
+    headerRange.setBackground('#0d47a1');
+    headerRange.setFontColor('#ffffff');
+    headerRange.setFontWeight('bold');
+    
+    // Auto-resize columns
+    configSheet.autoResizeColumns(1, headers.length);
+    
+    // Add instruction
+    configSheet.getRange(defaultTeams.length + 3, 1, 1, 3).merge();
+    configSheet.getRange(defaultTeams.length + 3, 1).setValue(
+      '💡 Modify team names and swimmer counts above. Use "Create Blank Relay Entry Sheets" to generate sheets based on this configuration.'
+    );
+    configSheet.getRange(defaultTeams.length + 3, 1)
+      .setBackground('#e3f2fd')
+      .setFontStyle('italic')
+      .setWrap(true);
+      
+    console.log('Created Team Relay Meet Config sheet with default teams');
+  }
+  
+  return configSheet;
+}
+
+/**
+ * Gets team configuration from the Team Relay Meet Config sheet
+ */
+function getTeamConfigurations() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const configSheet = ss.getSheetByName('Team Relay Meet Config');
+  
+  if (!configSheet) {
+    // Create the config sheet if it doesn't exist
+    setupTeamRelayMeetConfig();
+    return getTeamConfigurations(); // Recursive call to get the data
+  }
+  
+  const data = configSheet.getDataRange().getValues();
+  const headers = data[0];
+  const teams = [];
+  
+  // Parse team data (skip header row)
+  for (let i = 1; i < data.length; i++) {
+    const row = data[i];
+    const teamName = row[0];
+    const girlsCount = row[1] || 30;
+    const boysCount = row[2] || 30;
+    
+    // Skip empty rows
+    if (!teamName || teamName.toString().trim() === '') {
+      continue;
+    }
+    
+    // Skip instruction rows
+    if (teamName.toString().includes('💡')) {
+      continue;
+    }
+    
+    teams.push({
+      name: teamName.toString().trim(),
+      girlsCount: parseInt(girlsCount) || 30,
+      boysCount: parseInt(boysCount) || 30
+    });
+  }
+  
+  return teams;
+}
+
+/**
+ * Create blank relay entry sheets for teams based on Team Relay Meet Config
  */
 function createBlankRelayEntrySheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   
   try {
-    const teamNames = ['Team 1', 'Team 2', 'Team 3', 'Team 4', 'Team 5'];
+    // Ensure Team Relay Meet Config exists and get team configurations
+    setupTeamRelayMeetConfig();
+    const teamConfigs = getTeamConfigurations();
+    
+    if (teamConfigs.length === 0) {
+      SpreadsheetApp.getUi().alert(
+        'No Teams Configured',
+        'Please add team configurations to the "Team Relay Meet Config" sheet first.',
+        SpreadsheetApp.getUi().ButtonSet.OK
+      );
+      return;
+    }
     
     // Set up the relay entry sheet structure
     const relayEvents = [
@@ -7358,11 +7472,22 @@ function createBlankRelayEntrySheets() {
 
     const headers = ['Swimmer Name', 'Grade'].concat(relayEvents);
     
-    teamNames.forEach(teamName => {
-      // Remove existing sheet if it exists
+    const createdSheets = [];
+    const skippedSheets = [];
+    
+    teamConfigs.forEach(teamConfig => {
+      const teamName = teamConfig.name;
+      const girlsCount = teamConfig.girlsCount;
+      const boysCount = teamConfig.boysCount;
+      
+      // Check if sheet already exists
       let sheet = ss.getSheetByName(teamName);
       if (sheet) {
-        ss.deleteSheet(sheet);
+        // Update the existing sheet's team name in the header
+        sheet.getRange(1, 1).setValue(`Team Name: ${teamName}`);
+        skippedSheets.push(teamName);
+        console.log(`Sheet "${teamName}" already exists - updated team name only`);
+        return; // Skip to next team
       }
       
       // Create new sheet
@@ -7383,51 +7508,58 @@ function createBlankRelayEntrySheets() {
       sheet.getRange(3, 1).setValue('Girls');
       sheet.getRange(3, 1).setFontWeight('bold');
 
-      // Add some blank rows for girls (20 rows)
-      for (let i = 4; i < 24; i++) {
+      // Add blank rows for girls
+      for (let i = 4; i < 4 + girlsCount; i++) {
         sheet.getRange(i, 1, 1, headers.length).setValues([Array(headers.length).fill('')]);
       }
 
+      // Calculate row for boys section header (after girls + buffer)
+      const boysHeaderRow = 4 + girlsCount + 5; // 5 row buffer
+      
       // Add column headers again for boys section
-      sheet.getRange(29, 1, 1, headers.length).setValues([headers]);
-      sheet.getRange(29, 1, 1, headers.length)
+      sheet.getRange(boysHeaderRow, 1, 1, headers.length).setValues([headers]);
+      sheet.getRange(boysHeaderRow, 1, 1, headers.length)
         .setBackground('#0d47a1')
         .setFontColor('#ffffff')
         .setFontWeight('bold');
 
       // Boys section
-      sheet.getRange(30, 1).setValue('Boys');
-      sheet.getRange(30, 1).setFontWeight('bold');
+      sheet.getRange(boysHeaderRow + 1, 1).setValue('Boys');
+      sheet.getRange(boysHeaderRow + 1, 1).setFontWeight('bold');
 
-      // Add some blank rows for boys (20 rows)
-      for (let i = 31; i < 51; i++) {
+      // Add blank rows for boys
+      for (let i = boysHeaderRow + 2; i < boysHeaderRow + 2 + boysCount; i++) {
         sheet.getRange(i, 1, 1, headers.length).setValues([Array(headers.length).fill('')]);
       }
 
-      // Format the sheet
-      sheet.setColumnWidth(1, 150); // Swimmer Name
-      sheet.setColumnWidth(2, 60);  // Grade
-      for (let i = 3; i <= headers.length; i++) {
-        sheet.setColumnWidth(i, 80); // Event columns
-      }
-
-      // Freeze the header rows
-      sheet.setFrozenRows(2);
+      // Set up freeze panes (first 2 columns)
       sheet.setFrozenColumns(2);
+      
+      // Auto-resize columns for readability
+      sheet.autoResizeColumns(1, 2);
+      
+      createdSheets.push(teamName);
+      console.log(`Created blank relay entry sheet for ${teamName} (${girlsCount} girls, ${boysCount} boys)`);
     });
-
-    SpreadsheetApp.getUi().alert(
-      'Success!',
-      `Created ${teamNames.length} blank relay entry sheets: ${teamNames.join(', ')}\n\nEach sheet has space for swimmer entries with the same structure as your relay entry format.`,
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
-
-  } catch (e) {
+    
+    // Show summary to user
+    let message = '';
+    if (createdSheets.length > 0) {
+      message += `✅ Created ${createdSheets.length} new relay entry sheets:\n${createdSheets.join(', ')}\n\n`;
+    }
+    if (skippedSheets.length > 0) {
+      message += `⚠️ Updated team names for ${skippedSheets.length} existing sheets:\n${skippedSheets.join(', ')}\n\n`;
+    }
+    message += `💡 Configure team names and swimmer counts in the "Team Relay Meet Config" sheet.`;
+    
+    SpreadsheetApp.getUi().alert('Relay Entry Sheets', message, SpreadsheetApp.getUi().ButtonSet.OK);
+    
+  } catch (error) {
+    console.error('Error creating blank relay entry sheets:', error);
     SpreadsheetApp.getUi().alert(
       'Error',
-      `Failed to create blank relay entry sheets: ${e.message}`,
+      'Failed to create blank relay entry sheets: ' + error.message,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
-    console.error('Create blank relay entry sheets error:', e);
   }
 }

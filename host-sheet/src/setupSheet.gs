@@ -2,10 +2,10 @@
 
 // Build the Coach Tools menu on every open
 function onOpen() {
-  // First, setup the full CoachTools menu from the library
+  // Setup the full CoachTools menu from the library (includes all functionality)
   CoachToolsCore.setupCoachToolsMenu();
 
-  // Then add our attendance feature to it
+  // Add our attendance feature as a separate menu
   const ui = SpreadsheetApp.getUi();
   ui.createMenu('Attendance')
     .addItem('📋 Open Attendance Tracker (Sidebar)', 'openAttendanceSidebar')
