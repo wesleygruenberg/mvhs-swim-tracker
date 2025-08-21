@@ -190,6 +190,12 @@ function generateRelayAssignments() {
 function refreshSwimmerAssignmentSummary() {
   CoachToolsCore.refreshSwimmerAssignmentSummary();
 }
+function createMyRelayEntrySheet() {
+  CoachToolsCore.createMyRelayEntrySheet();
+}
+function createBlankRelayEntrySheets() {
+  CoachToolsCore.createBlankRelayEntrySheets();
+}
 
 function buildAttendanceSidebar() {
   const t = HtmlService.createTemplateFromFile('AttendanceUI');
