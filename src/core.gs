@@ -7567,32 +7567,45 @@ function setupLaneAssignments() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   let laneSheet = ss.getSheetByName('Lane Assignments');
   
+  // Get team names from Team Relay Meet Config
+  const teamConfigs = getTeamConfigurations();
+  const teamNames = teamConfigs.map(config => config.teamName);
+  
+  if (teamNames.length === 0) {
+    SpreadsheetApp.getUi().alert(
+      'No Team Configuration Found',
+      'Please run "Setup Team Relay Meet Config" first to configure your teams before setting up lane assignments.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    return;
+  }
+  
   if (!laneSheet) {
     laneSheet = ss.insertSheet('Lane Assignments');
     
-    // Set up headers based on CSV format
-    const headers = ['Event #', 'Event Name', 'CENT', 'MVHS', 'MER', 'EAGLE', 'TIMBER'];
+    // Set up headers based on team configuration
+    const headers = ['Event #', 'Event Name', ...teamNames];
     laneSheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     
-    // Add sample data from the CSV
+    // Add sample data with dynamic lane assignments (cycling through teams)
     const sampleData = [
-      [1, '200 Medley Relay', 2, 3, 4, 5, 1],
-      [2, 'JV 200 Medley Relay', 1, 4, 5, 2, 3],
-      [3, '350 Free Relay', 4, 1, 2, 3, 5],
-      [4, '200 Fly Relay', 5, 2, 3, 1, 4],
-      [5, 'JV 200 Fly Relay', 1, 3, 4, 5, 2],
-      [6, '200 Breast Relay', 3, 4, 5, 2, 1],
-      [7, 'JV 200 Breast Relay', 4, 5, 2, 1, 3],
-      [8, '200 Free Relay', 5, 1, 3, 4, 2],
-      [9, 'JV 200 Free Relay', 2, 1, 4, 5, 3],
-      [10, '400 IM Relay', 3, 4, 1, 2, 5],
-      [11, 'JV 400 IM Relay', 1, 5, 2, 3, 4],
-      [13, '200 Back Relay', 5, 2, 3, 4, 1],
-      [14, 'JV 200 Back Relay', 1, 3, 4, 5, 2],
-      [15, '400 Free Relay', 3, 4, 1, 2, 5],
-      [16, 'JV 400 Free Relay', 4, 5, 2, 1, 3],
-      [17, '200 Medley Relay Co-ed', 5, 1, 3, 4, 2],
-      [18, '200 Frosh Free Relay', 2, 3, 1, 5, 4]
+      [1, '200 Medley Relay', ...generateLaneAssignments(teamNames.length)],
+      [2, 'JV 200 Medley Relay', ...generateLaneAssignments(teamNames.length, 1)],
+      [3, '350 Free Relay', ...generateLaneAssignments(teamNames.length, 3)],
+      [4, '200 Fly Relay', ...generateLaneAssignments(teamNames.length, 4)],
+      [5, 'JV 200 Fly Relay', ...generateLaneAssignments(teamNames.length, 0)],
+      [6, '200 Breast Relay', ...generateLaneAssignments(teamNames.length, 2)],
+      [7, 'JV 200 Breast Relay', ...generateLaneAssignments(teamNames.length, 3)],
+      [8, '200 Free Relay', ...generateLaneAssignments(teamNames.length, 4)],
+      [9, 'JV 200 Free Relay', ...generateLaneAssignments(teamNames.length, 1)],
+      [10, '400 IM Relay', ...generateLaneAssignments(teamNames.length, 2)],
+      [11, 'JV 400 IM Relay', ...generateLaneAssignments(teamNames.length, 0)],
+      [13, '200 Back Relay', ...generateLaneAssignments(teamNames.length, 4)],
+      [14, 'JV 200 Back Relay', ...generateLaneAssignments(teamNames.length, 0)],
+      [15, '400 Free Relay', ...generateLaneAssignments(teamNames.length, 2)],
+      [16, 'JV 400 Free Relay', ...generateLaneAssignments(teamNames.length, 3)],
+      [17, '200 Medley Relay Co-ed', ...generateLaneAssignments(teamNames.length, 4)],
+      [18, '200 Frosh Free Relay', ...generateLaneAssignments(teamNames.length, 1)]
     ];
     
     laneSheet.getRange(2, 1, sampleData.length, headers.length).setValues(sampleData);
@@ -7606,10 +7619,42 @@ function setupLaneAssignments() {
     // Auto-resize columns
     laneSheet.autoResizeColumns(1, headers.length);
     
-    console.log('Created Lane Assignments sheet with sample data');
+    console.log(`Created Lane Assignments sheet with ${teamNames.length} teams: ${teamNames.join(', ')}`);
+  } else {
+    // Update existing sheet headers if team configuration changed
+    const existingHeaders = laneSheet.getRange(1, 1, 1, laneSheet.getLastColumn()).getValues()[0];
+    const expectedHeaders = ['Event #', 'Event Name', ...teamNames];
+    
+    // Check if headers match current team configuration
+    if (existingHeaders.length !== expectedHeaders.length || 
+        !expectedHeaders.every((header, index) => existingHeaders[index] === header)) {
+      
+      // Update headers to match current team configuration
+      laneSheet.getRange(1, 1, 1, expectedHeaders.length).setValues([expectedHeaders]);
+      
+      // Format headers
+      const headerRange = laneSheet.getRange(1, 1, 1, expectedHeaders.length);
+      headerRange.setBackground('#0d47a1');
+      headerRange.setFontColor('#ffffff');
+      headerRange.setFontWeight('bold');
+      
+      console.log(`Updated Lane Assignments headers for teams: ${teamNames.join(', ')}`);
+    }
   }
   
   return laneSheet;
+}
+
+/**
+ * Helper function to generate lane assignments for teams (1-5, cycling)
+ */
+function generateLaneAssignments(numTeams, offset = 0) {
+  const assignments = [];
+  for (let i = 0; i < numTeams; i++) {
+    // Assign lanes 1-5, cycling through with offset
+    assignments.push(((i + offset) % 5) + 1);
+  }
+  return assignments;
 }
 
 /**
@@ -7627,6 +7672,9 @@ function getLaneAssignments() {
   const headers = data[0];
   const assignments = [];
   
+  // Get team names from headers (skip Event # and Event Name columns)
+  const teamHeaders = headers.slice(2);
+  
   // Parse lane assignments (skip header row)
   for (let i = 1; i < data.length; i++) {
     const row = data[i];
@@ -7639,14 +7687,15 @@ function getLaneAssignments() {
     const laneAssignment = {
       eventNumber: eventNum,
       eventName: eventName.toString().trim(),
-      lanes: {
-        CENT: row[2],
-        MVHS: row[3], 
-        MER: row[4],
-        EAGLE: row[5],
-        TIMBER: row[6]
-      }
+      lanes: {}
     };
+    
+    // Build lanes object dynamically from team headers
+    teamHeaders.forEach((teamName, index) => {
+      if (teamName && teamName.trim()) {
+        laneAssignment.lanes[teamName.trim()] = row[index + 2]; // +2 to skip Event # and Event Name
+      }
+    });
     
     assignments.push(laneAssignment);
   }
@@ -7722,8 +7771,15 @@ function generateRelayHeatSheet() {
     // Get lane assignments
     const laneAssignments = getLaneAssignments();
     
+    // Get team names from Team Relay Meet Config
+    const teamConfigs = getTeamConfigurations();
+    const teamNames = teamConfigs.map(config => config.teamName);
+    
+    if (teamNames.length === 0) {
+      throw new Error('No teams found in Team Relay Meet Config. Please run "Setup Team Relay Meet Config" first.');
+    }
+    
     // Get all team entries
-    const teamNames = ['CENT', 'MVHS', 'MER', 'EAGLE', 'TIMBER'];
     const allTeamEntries = {};
     
     teamNames.forEach(teamName => {
