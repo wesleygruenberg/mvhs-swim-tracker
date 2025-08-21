@@ -7559,7 +7559,16 @@ function createBlankRelayEntrySheets() {
     message += `💡 Configure team names and swimmer counts in the "Team Relay Meet Config" sheet.`;
     
     SpreadsheetApp.getUi().alert('Relay Entry Sheets', message, SpreadsheetApp.getUi().ButtonSet.OK);
-    
+  } catch (error) {
+    console.error('Error creating blank relay entry sheets:', error);
+    SpreadsheetApp.getUi().alert(
+      'Error', 
+      'Failed to create relay entry sheets: ' + error.message, 
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+  }
+}
+
 /**
  * Creates or updates the Lane Assignments sheet based on the CSV format
  */
@@ -7885,16 +7894,6 @@ function generateRelayHeatSheet() {
     SpreadsheetApp.getUi().alert(
       'Error',
       'Failed to generate heat sheet: ' + error.message,
-      SpreadsheetApp.getUi().ButtonSet.OK
-    );
-  }
-}
-
-  } catch (error) {
-    console.error('Error creating blank relay entry sheets:', error);
-    SpreadsheetApp.getUi().alert(
-      'Error',
-      'Failed to create blank relay entry sheets: ' + error.message,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
   }
