@@ -1440,14 +1440,100 @@ function setupRelayEvents() {
     // Auto-resize columns
     relaySheet.autoResizeColumns(1, headers.length);
 
+    // Add section break and non-conventional relays table
+    const lastRow = relaySheet.getLastRow();
+    const sectionBreakRow = lastRow + 2;
+    
+    // Section header for non-conventional relays
+    relaySheet.getRange(sectionBreakRow, 1).setValue('NON-CONVENTIONAL RELAYS (Different Leg Counts)');
+    relaySheet.getRange(sectionBreakRow, 1, 1, 8).merge();
+    relaySheet.getRange(sectionBreakRow, 1)
+      .setBackground('#ff6d01')
+      .setFontColor('#ffffff')
+      .setFontWeight('bold')
+      .setHorizontalAlignment('center');
+
+    // Non-conventional relay headers
+    const nonConvHeaders = [
+      'Priority',
+      'Event Name', 
+      'Level',
+      'Gender',
+      'Number of Legs',
+      'Stroke Pattern',
+      'Distance per Leg',
+      'Active'
+    ];
+    
+    relaySheet.getRange(sectionBreakRow + 1, 1, 1, nonConvHeaders.length).setValues([nonConvHeaders]);
+    
+    // Format non-conventional headers
+    const nonConvHeaderRange = relaySheet.getRange(sectionBreakRow + 1, 1, 1, nonConvHeaders.length);
+    nonConvHeaderRange.setBackground('#e65100');
+    nonConvHeaderRange.setFontColor('#ffffff');
+    nonConvHeaderRange.setFontWeight('bold');
+
+    // Add sample non-conventional relays
+    const nonConvRelays = [
+      [19, '350 Free', 'Varsity', 'Both', 3, 'Free-Free-Free', 117, true],
+      [20, 'I-tube', 'Varsity', 'Both', 6, 'Special-Special-Special-Special-Special-Special', 0, true]
+    ];
+
+    relaySheet.getRange(sectionBreakRow + 2, 1, nonConvRelays.length, nonConvHeaders.length).setValues(nonConvRelays);
+
+    // Set up data validation for non-conventional relays
+    const nonConvStartRow = sectionBreakRow + 2;
+    
+    // Priority validation
+    const nonConvPriorityRange = relaySheet.getRange(nonConvStartRow, 1, nonConvRelays.length, 1);
+    nonConvPriorityRange.setDataValidation(priorityRule);
+
+    // Level validation
+    const nonConvLevelRange = relaySheet.getRange(nonConvStartRow, 3, nonConvRelays.length, 1);
+    nonConvLevelRange.setDataValidation(levelRule);
+
+    // Gender validation
+    const nonConvGenderRange = relaySheet.getRange(nonConvStartRow, 4, nonConvRelays.length, 1);
+    nonConvGenderRange.setDataValidation(genderRule);
+
+    // Number of legs validation (3-8 legs)
+    const legsRange = relaySheet.getRange(nonConvStartRow, 5, nonConvRelays.length, 1);
+    const legsRule = SpreadsheetApp.newDataValidation()
+      .requireNumberBetween(3, 8)
+      .setAllowInvalid(false)
+      .setHelpText('Number of legs from 3 to 8')
+      .build();
+    legsRange.setDataValidation(legsRule);
+
+    // Active validation
+    const nonConvActiveRange = relaySheet.getRange(nonConvStartRow, 8, nonConvRelays.length, 1);
+    nonConvActiveRange.setDataValidation(activeRule);
+
+    // Color non-conventional relays
+    for (let i = 0; i < nonConvRelays.length; i++) {
+      const rowNum = nonConvStartRow + i;
+      const level = nonConvRelays[i][2];
+      const rowRange = relaySheet.getRange(rowNum, 1, 1, nonConvHeaders.length);
+
+      if (level === 'JV') {
+        rowRange.setBackground('#fff3e0'); // Light orange for JV non-conventional
+      } else {
+        rowRange.setBackground('#fce4ec'); // Light pink for Varsity non-conventional
+      }
+    }
+
+    // Auto-resize all columns
+    relaySheet.autoResizeColumns(1, Math.max(headers.length, nonConvHeaders.length));
+
     SpreadsheetApp.getUi().alert(
       'Relay Events Config Created!',
-      `Created configurable relay events sheet with ${relayEvents.length} relay events.\n\n` +
+      `Created configurable relay events sheet with ${relayEvents.length} conventional relay events and ${nonConvRelays.length} non-conventional relays.\n\n` +
         `Features:\n` +
         `• Priority column (1 = highest priority)\n` +
         `• Gender configuration (Men/Women/Both/Mixed)\n` +
         `• Active checkbox to enable/disable events\n` +
-        `• Color coding: Light Blue = JV, Light Purple = Varsity\n\n` +
+        `• Non-conventional relays with custom leg counts\n` +
+        `• Color coding: Blue/Purple = Conventional, Orange/Pink = Non-conventional\n\n` +
         `Adjust priorities and settings, then run "Generate Smart Relay Assignments"!`,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
@@ -1483,10 +1569,62 @@ function generateRelayAssignments() {
 
     const configData = relayConfigSheet.getDataRange().getValues();
     const configHeaders = configData[0];
-    const relayConfigs = configData.slice(1).filter(row => row[9] === true); // Only active events
+    
+    // Parse both conventional and non-conventional relays
+    const conventionalRelays = [];
+    const nonConventionalRelays = [];
+    let foundNonConventionalSection = false;
+    
+    for (let i = 1; i < configData.length; i++) {
+      const row = configData[i];
+      
+      // Check if we've hit the non-conventional section
+      if (row[0] && row[0].toString().includes('NON-CONVENTIONAL RELAYS')) {
+        foundNonConventionalSection = true;
+        i++; // Skip the header row
+        continue;
+      }
+      
+      // Skip empty rows
+      if (!row[0] && !row[1]) continue;
+      
+      // Only process active events
+      const activeColumnIndex = foundNonConventionalSection ? 7 : 9;
+      if (row[activeColumnIndex] !== true) continue;
+      
+      if (foundNonConventionalSection) {
+        nonConventionalRelays.push({
+          type: 'non-conventional',
+          priority: row[0],
+          eventName: row[1],
+          level: row[2],
+          genderConfig: row[3],
+          numLegs: row[4],
+          strokePattern: row[5],
+          distance: row[6],
+          active: row[7]
+        });
+      } else {
+        conventionalRelays.push({
+          type: 'conventional',
+          priority: row[0],
+          eventName: row[1],
+          level: row[2],
+          genderConfig: row[3],
+          stroke1: row[4],
+          stroke2: row[5],
+          stroke3: row[6],
+          stroke4: row[7],
+          distance: row[8],
+          active: row[9],
+          notes: row[10]
+        });
+      }
+    }
 
-    // Sort by priority (lower number = higher priority)
-    relayConfigs.sort((a, b) => a[0] - b[0]);
+    // Combine and sort all relay configs by priority
+    const allRelayConfigs = [...conventionalRelays, ...nonConventionalRelays];
+    allRelayConfigs.sort((a, b) => a.priority - b.priority);
 
     // Get swimmers data
     const swimmersSheet = ss.getSheetByName('Swimmers');
@@ -1533,6 +1671,25 @@ function generateRelayAssignments() {
       }
     }
 
+    // Preserve locked relays from existing assignments
+    let lockedRelays = [];
+    if (resultsSheet && hasExistingAssignments) {
+      const existingData = resultsSheet.getDataRange().getValues();
+      const existingHeaders = existingData[0];
+      const lockIndex = existingHeaders.indexOf('Lock');
+      
+      if (lockIndex !== -1) {
+        // Find locked relays to preserve
+        for (let i = 1; i < existingData.length; i++) {
+          const row = existingData[i];
+          if (row[lockIndex] === true) {
+            lockedRelays.push(row);
+            console.log(`Preserving locked relay: ${row[0]} ${row[1]} ${row[2]}`);
+          }
+        }
+      }
+    }
+
     // Get or create Results sheet
     if (!resultsSheet) {
       resultsSheet = ss.insertSheet('Relay Assignments');
@@ -1544,26 +1701,35 @@ function generateRelayAssignments() {
     const instructionText =
       '💡 After making manual changes to assignments, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.';
     resultsSheet.getRange(1, 1).setValue(instructionText);
-    resultsSheet.getRange(1, 1, 1, 13).merge();
+    resultsSheet.getRange(1, 1, 1, headers.length).merge();
     resultsSheet
       .getRange(1, 1)
       .setBackground('#e3f2fd')
       .setFontStyle('italic')
       .setWrap(true);
 
-    // Set up headers
+    // Set up headers with support for non-conventional relays
     const headers = [
       'Event',
-      'Level',
+      'Level', 
       'Gender',
+      'Lock',
       'Leg 1',
       'Leg 1 Time',
       'Leg 2',
       'Leg 2 Time',
       'Leg 3',
       'Leg 3 Time',
-      'Leg 4 (Anchor)',
+      'Leg 4',
       'Leg 4 Time',
+      'Leg 5',
+      'Leg 5 Time',
+      'Leg 6',
+      'Leg 6 Time',
+      'Leg 7',
+      'Leg 7 Time',
+      'Leg 8',
+      'Leg 8 Time',
       'Total Time',
       'Notes',
     ];
@@ -1581,20 +1747,21 @@ function generateRelayAssignments() {
     let currentRow = 3; // Start from row 3 now since we added instruction row
 
     // Process each relay configuration
-    for (const config of relayConfigs) {
-      const [
-        priority,
-        eventName,
-        level,
-        genderConfig,
-        stroke1,
-        stroke2,
-        stroke3,
-        stroke4,
-        distance,
-        active,
-        notes,
-      ] = config;
+    for (const config of allRelayConfigs) {
+      if (config.type === 'conventional') {
+        const {
+          priority,
+          eventName,
+          level,
+          genderConfig,
+          stroke1,
+          stroke2,
+          stroke3,
+          stroke4,
+          distance,
+          active,
+          notes,
+        } = config;
 
       // Determine which genders to create relays for
       const gendersToProcess = getGendersForRelay_(genderConfig);
@@ -1648,21 +1815,14 @@ function generateRelayAssignments() {
         );
 
         if (selectedSwimmers.length >= 4) {
-          const relayRow = [
+          const relayRow = createConventionalRelayRow_(
             eventName,
             level,
             gender,
-            selectedSwimmers[0].name,
-            getTentativeTime_(selectedSwimmers[0], stroke1),
-            selectedSwimmers[1].name,
-            getTentativeTime_(selectedSwimmers[1], stroke2),
-            selectedSwimmers[2].name,
-            getTentativeTime_(selectedSwimmers[2], stroke3),
-            selectedSwimmers[3].name,
-            getTentativeTime_(selectedSwimmers[3], stroke4),
-            'TBD',
-            `Smart-assigned (${eligibleSwimmers.length} eligible)`,
-          ];
+            selectedSwimmers,
+            [stroke1, stroke2, stroke3, stroke4],
+            eligibleSwimmers.length
+          );
 
           relayResults.push(relayRow);
 
@@ -1675,29 +1835,13 @@ function generateRelayAssignments() {
           });
         } else if (selectedSwimmers.length > 0) {
           // Partial relay - fill what we can
-          const relayRow = [
+          const relayRow = createPartialConventionalRelayRow_(
             eventName,
             level,
             gender,
-            selectedSwimmers.length > 0 ? selectedSwimmers[0].name : '',
-            selectedSwimmers.length > 0
-              ? getTentativeTime_(selectedSwimmers[0], stroke1)
-              : '',
-            selectedSwimmers.length > 1 ? selectedSwimmers[1].name : '',
-            selectedSwimmers.length > 1
-              ? getTentativeTime_(selectedSwimmers[1], stroke2)
-              : '',
-            selectedSwimmers.length > 2 ? selectedSwimmers[2].name : '',
-            selectedSwimmers.length > 2
-              ? getTentativeTime_(selectedSwimmers[2], stroke3)
-              : '',
-            selectedSwimmers.length > 3 ? selectedSwimmers[3].name : '',
-            selectedSwimmers.length > 3
-              ? getTentativeTime_(selectedSwimmers[3], stroke4)
-              : '',
-            'TBD',
-            `Partial: ${selectedSwimmers.length}/4 (many swimmers at 4-relay limit)`,
-          ];
+            selectedSwimmers,
+            [stroke1, stroke2, stroke3, stroke4]
+          );
           relayResults.push(relayRow);
 
           // Track partial assignments
@@ -1708,31 +1852,49 @@ function generateRelayAssignments() {
             swimmerAssignments.get(swimmer.name).push(`${eventName} ${gender}`);
           });
         } else {
-          // Empty relay - all swimmers at limit
-          const availableCount = eligibleSwimmers.filter(
-            s => (swimmerAssignments.get(s.name) || []).length < 4
-          ).length;
-          const relayRow = [
-            eventName,
-            level,
-            gender,
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            '',
-            'TBD',
-            `No available swimmers (${availableCount}/${eligibleSwimmers.length} under 4-relay limit)`,
-          ];
+          // No eligible swimmers
+          const relayRow = createEmptyConventionalRelayRow_(eventName, level, gender);
           relayResults.push(relayRow);
         }
       }
     }
 
-    // Write results to sheet
+    // Add preserved locked relays to the results
+    if (lockedRelays.length > 0) {
+      console.log(`Adding ${lockedRelays.length} locked relays back to results`);
+      
+      // Make sure locked relays have the correct number of columns to match new structure
+      lockedRelays.forEach(lockedRow => {
+        if (lockedRow.length < headers.length) {
+          // Pad with empty strings to match new header structure
+          while (lockedRow.length < headers.length) {
+            lockedRow.push('');
+          }
+        }
+        // Ensure Lock column is set to true
+        lockedRow[3] = true;
+        relayResults.push(lockedRow);
+        
+        // Track locked relay swimmer assignments
+        const event = lockedRow[0];
+        const level = lockedRow[1];
+        const gender = lockedRow[2];
+        const relayName = `${event} (${level} ${gender})`;
+        
+        // Check all possible leg positions for swimmers
+        for (let i = 4; i < headers.length - 2; i += 2) { // Skip Lock, Total Time, Notes columns
+          const swimmer = lockedRow[i];
+          if (swimmer && swimmer.toString().trim() !== '') {
+            if (!swimmerAssignments.has(swimmer)) {
+              swimmerAssignments.set(swimmer, []);
+            }
+            swimmerAssignments.get(swimmer).push(relayName);
+          }
+        }
+      });
+    }
+
+    // Write all results to sheet
     if (relayResults.length > 0) {
       resultsSheet
         .getRange(3, 1, relayResults.length, headers.length)
@@ -1751,16 +1913,19 @@ function generateRelayAssignments() {
 
     SpreadsheetApp.getUi().alert(
       'Smart Relay Assignments Created!',
-      `Generated ${relayResults.length} relay assignments with load balancing.\n\n` +
-        `Features:\n` +
+      `Generated ${relayResults.length} relay assignments with enhanced features.\n\n` +
+        `New Features:\n` +
+        `• Support for non-conventional relays (3-8 legs)\n` +
+        `• Lock checkbox to preserve specific assignments\n` +
+        `• ${lockedRelays.length} locked relays preserved from previous assignments\n\n` +
+        `Existing Features:\n` +
         `• 4-relay maximum per swimmer enforced\n` +
         `• Load balancing: swimmers with fewer relays preferred\n` +
         `• Dropdown lists for easy editing\n` +
         `• Red highlighting: same relay conflicts\n` +
         `• Orange highlighting: >4 total relay violations\n\n` +
-        `Swimmers with fewer current relays are prioritized for new assignments.\n` +
-        `Use dropdowns to manually adjust assignments as needed!\n\n` +
-        `💡 Tip: After making changes, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary with your manual edits.`,
+        `💡 Tip: Check the "Lock" box for any relay you want to preserve during future regenerations.\n` +
+        `After manual changes, use "Coach Tools > Refresh Swimmer Assignment Summary" to update the summary.`,
       SpreadsheetApp.getUi().ButtonSet.OK
     );
 
@@ -2062,12 +2227,12 @@ function getSwimmerPRs_(swimmerName) {
  * Format relay results sheet
  */
 function formatRelayResults_(sheet, numRows) {
-  // Auto-resize columns
-  sheet.autoResizeColumns(1, 13);
+  // Auto-resize columns for all columns
+  sheet.autoResizeColumns(1, Math.max(22, sheet.getLastColumn()));
 
   // Apply alternating row colors
   for (let i = 2; i <= numRows; i++) {
-    const rowRange = sheet.getRange(i, 1, 1, 13);
+    const rowRange = sheet.getRange(i, 1, 1, Math.max(22, sheet.getLastColumn()));
     if (i % 2 === 0) {
       rowRange.setBackground('#f8f9fa');
     }
@@ -2190,16 +2355,32 @@ function refreshSwimmerAssignmentSummary() {
 
     console.log('Headers found:', headers);
 
-    // Find column indices for swimmer positions
+    // Find column indices for swimmer positions - updated for new structure
     const leg1Index = headers.indexOf('Leg 1');
     const leg2Index = headers.indexOf('Leg 2');
     const leg3Index = headers.indexOf('Leg 3');
-    const leg4Index = headers.indexOf('Leg 4 (Anchor)');
+    const leg4Index = headers.indexOf('Leg 4');
+    const leg5Index = headers.indexOf('Leg 5');
+    const leg6Index = headers.indexOf('Leg 6');
+    const leg7Index = headers.indexOf('Leg 7');
+    const leg8Index = headers.indexOf('Leg 8');
     const eventIndex = headers.indexOf('Event');
     const levelIndex = headers.indexOf('Level');
     const genderIndex = headers.indexOf('Gender');
 
-    console.log('Column indices:', { leg1Index, leg2Index, leg3Index, leg4Index, eventIndex, levelIndex, genderIndex });
+    console.log('Column indices:', {
+      leg1Index,
+      leg2Index,
+      leg3Index,
+      leg4Index,
+      leg5Index,
+      leg6Index,
+      leg7Index,
+      leg8Index,
+      eventIndex,
+      levelIndex,
+      genderIndex,
+    });
 
     if (leg1Index === -1 || eventIndex === -1) {
       SpreadsheetApp.getUi().alert(
@@ -2221,8 +2402,8 @@ function refreshSwimmerAssignmentSummary() {
 
       const relayName = `${event} (${level} ${gender})`;
 
-      // Add each swimmer to their assignments
-      [leg1Index, leg2Index, leg3Index, leg4Index].forEach(legIndex => {
+      // Add each swimmer to their assignments - handle up to 8 legs
+      [leg1Index, leg2Index, leg3Index, leg4Index, leg5Index, leg6Index, leg7Index, leg8Index].forEach(legIndex => {
         if (legIndex !== -1 && row[legIndex]) {
           const swimmer = row[legIndex].toString().trim();
           if (swimmer && swimmer !== '') {
@@ -2235,7 +2416,10 @@ function refreshSwimmerAssignmentSummary() {
       });
     }
 
-    console.log('Found assignments for swimmers:', Array.from(swimmerAssignments.keys()));
+    console.log(
+      'Found assignments for swimmers:',
+      Array.from(swimmerAssignments.keys())
+    );
 
     // Create/update the swimmer assignment summary
     createSwimmerAssignmentSummary_(ss, swimmerAssignments);
@@ -2370,13 +2554,22 @@ function setupRelayDropdownsAndValidation_(sheet, swimmers, numRows) {
     swimmersByGroup[key].unshift(''); // Add empty option at beginning
   });
 
-  // Set up data validation for swimmer columns (4, 6, 8, 10)
-  const swimmerColumns = [4, 6, 8, 10]; // Leg 1, Leg 2, Leg 3, Leg 4
+  // Set up data validation for swimmer columns - updated for new column structure
+  // With Lock column added, swimmer columns are now: 5, 7, 9, 11, 13, 15, 17, 19 (Legs 1-8)
+  const swimmerColumns = [5, 7, 9, 11, 13, 15, 17, 19]; // Leg 1-8 swimmer columns
 
   for (let row = 3; row <= numRows; row++) {
     // Start from row 3 due to instruction row
     const level = sheet.getRange(row, 2).getValue();
     const gender = sheet.getRange(row, 3).getValue();
+
+    // Set up Lock column validation (column 4)
+    const lockCell = sheet.getRange(row, 4);
+    const lockRule = SpreadsheetApp.newDataValidation()
+      .requireCheckbox()
+      .setHelpText('Check to prevent this relay from being regenerated')
+      .build();
+    lockCell.setDataValidation(lockRule);
 
     // Determine which swimmers are eligible
     let eligibleSwimmers = [];
@@ -2440,7 +2633,8 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   // Red highlight for swimmers in multiple legs of same relay
   for (let row = 3; row <= numRows; row++) {
     // Start from row 3 due to instruction row
-    const swimmerColumns = [4, 6, 8, 10]; // Leg columns
+    // Updated swimmer columns for new structure: 5,7,9,11,13,15,17,19 (Legs 1-8)
+    const swimmerColumns = [5, 7, 9, 11, 13, 15, 17, 19]; // Leg columns
 
     swimmerColumns.forEach((col, index) => {
       const otherCols = swimmerColumns.filter((_, i) => i !== index);
@@ -2461,15 +2655,20 @@ function setupRelayValidationFormatting_(sheet, numRows) {
   }
 
   // Orange highlight for swimmers in more than 4 relays total
-  // This is more complex - we'll use a custom function approach
-  const swimmerColumns = [4, 6, 8, 10]; // Leg columns
+  // Updated to handle all 8 leg columns
+  const swimmerColumns = [5, 7, 9, 11, 13, 15, 17, 19]; // Leg columns
 
   for (let row = 3; row <= numRows; row++) {
     // Start from row 3 due to instruction row
     swimmerColumns.forEach(col => {
       // Create a formula that counts how many times this swimmer appears in the entire sheet
       const cellRef = sheet.getRange(row, col).getA1Notation();
-      const formula = `=AND(${cellRef}<>"", COUNTIF(D3:D1000,${cellRef})+COUNTIF(F3:F1000,${cellRef})+COUNTIF(H3:H1000,${cellRef})+COUNTIF(J3:J1000,${cellRef})>4)`;
+      const countRefs = swimmerColumns.map(c => {
+        const columnLetter = String.fromCharCode(64 + c); // Convert column number to letter
+        return `COUNTIF(${columnLetter}3:${columnLetter}1000,${cellRef})`;
+      }).join('+');
+      
+      const formula = `=AND(${cellRef}<>"", ${countRefs}>4)`;
 
       const rule = SpreadsheetApp.newConditionalFormatRule()
         .whenFormulaSatisfied(formula)
@@ -6455,4 +6654,132 @@ function openAttendanceSidebar() {
 // Helper to include partials (css/js)
 function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
+}
+
+/**
+ * Helper functions for relay row creation
+ */
+function createConventionalRelayRow_(eventName, level, gender, selectedSwimmers, strokes, eligibleCount) {
+  const relayRow = new Array(22).fill(''); // Initialize array with 22 elements
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  
+  // Fill first 4 legs for conventional relays
+  for (let i = 0; i < 4 && i < selectedSwimmers.length; i++) {
+    relayRow[4 + i * 2] = selectedSwimmers[i].name; // Swimmer name
+    relayRow[5 + i * 2] = getTentativeTime_(selectedSwimmers[i], strokes[i]); // Time
+  }
+  
+  relayRow[20] = 'TBD'; // Total Time
+  relayRow[21] = `Smart-assigned (${eligibleCount} eligible)`; // Notes
+  
+  return relayRow;
+}
+
+function createPartialConventionalRelayRow_(eventName, level, gender, selectedSwimmers, strokes) {
+  const relayRow = new Array(22).fill(''); // Initialize array with 22 elements
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  
+  // Fill available swimmers
+  for (let i = 0; i < Math.min(4, selectedSwimmers.length); i++) {
+    relayRow[4 + i * 2] = selectedSwimmers[i].name;
+    relayRow[5 + i * 2] = getTentativeTime_(selectedSwimmers[i], strokes[i]);
+  }
+  
+  relayRow[20] = 'TBD';
+  relayRow[21] = `Partial: ${selectedSwimmers.length}/4 (many swimmers at 4-relay limit)`;
+  
+  return relayRow;
+}
+
+function createEmptyConventionalRelayRow_(eventName, level, gender) {
+  const relayRow = new Array(22).fill('');
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  relayRow[20] = 'TBD';
+  relayRow[21] = 'No available swimmers (all at 4-relay limit)';
+  
+  return relayRow;
+}
+
+function createNonConventionalRelayRow_(eventName, level, gender, selectedSwimmers, numLegs, strokePattern, eligibleCount) {
+  const relayRow = new Array(22).fill('');
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  
+  // Fill legs based on numLegs
+  for (let i = 0; i < numLegs && i < selectedSwimmers.length; i++) {
+    relayRow[4 + i * 2] = selectedSwimmers[i].name;
+    relayRow[5 + i * 2] = getTentativeTime_(selectedSwimmers[i], 'Free'); // Default to Free for now
+  }
+  
+  relayRow[20] = 'TBD';
+  relayRow[21] = `${numLegs}-leg relay: Smart-assigned (${eligibleCount} eligible)`;
+  
+  return relayRow;
+}
+
+function createPartialNonConventionalRelayRow_(eventName, level, gender, selectedSwimmers, numLegs) {
+  const relayRow = new Array(22).fill('');
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  
+  // Fill available swimmers
+  for (let i = 0; i < selectedSwimmers.length; i++) {
+    relayRow[4 + i * 2] = selectedSwimmers[i].name;
+    relayRow[5 + i * 2] = getTentativeTime_(selectedSwimmers[i], 'Free');
+  }
+  
+  relayRow[20] = 'TBD';
+  relayRow[21] = `Partial ${numLegs}-leg: ${selectedSwimmers.length}/${numLegs} (swimmers at 4-relay limit)`;
+  
+  return relayRow;
+}
+
+function createEmptyNonConventionalRelayRow_(eventName, level, gender, numLegs) {
+  const relayRow = new Array(22).fill('');
+  relayRow[0] = eventName;
+  relayRow[1] = level;
+  relayRow[2] = gender;
+  relayRow[3] = false; // Lock checkbox
+  relayRow[20] = 'TBD';
+  relayRow[21] = `${numLegs}-leg relay: No available swimmers (all at 4-relay limit)`;
+  
+  return relayRow;
+}
+
+function selectSwimmersForNonConventionalRelay_(eligibleSwimmers, swimmerAssignments, eventName, gender, numLegs) {
+  // Similar to selectSwimmersForRelay_ but for variable leg counts
+  const availableSwimmers = eligibleSwimmers.filter(swimmer => {
+    const currentAssignments = swimmerAssignments.get(swimmer.name) || [];
+    return currentAssignments.length < 4; // Still enforce 4-relay max
+  });
+
+  // Sort by current assignment count (fewer assignments first) then by best time
+  availableSwimmers.sort((a, b) => {
+    const aAssignments = (swimmerAssignments.get(a.name) || []).length;
+    const bAssignments = (swimmerAssignments.get(b.name) || []).length;
+    
+    if (aAssignments !== bAssignments) {
+      return aAssignments - bAssignments; // Fewer assignments first
+    }
+    
+    // If same assignment count, sort by best freestyle time
+    const aTime = parseTimeToSeconds_(a.personalRecords?.['50 Free'] || '99:99.99');
+    const bTime = parseTimeToSeconds_(b.personalRecords?.['50 Free'] || '99:99.99');
+    return aTime - bTime;
+  });
+
+  return availableSwimmers.slice(0, numLegs);
 }
