@@ -190,6 +190,9 @@ function generateRelayAssignments() {
 function refreshSwimmerAssignmentSummary() {
   CoachToolsCore.refreshSwimmerAssignmentSummary();
 }
+function refreshAllRelayAssignments() {
+  CoachToolsCore.refreshAllRelayAssignments();
+}
 function createMyRelayEntrySheet() {
   CoachToolsCore.createMyRelayEntrySheet();
 }

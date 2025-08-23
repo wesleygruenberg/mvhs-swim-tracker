@@ -1,0 +1,19 @@
+﻿Event #,Event Name,CENT,MVHS,MER,EAGLE,TIMBER
+1,200 Medley Relay,2,3,4,5,1
+2,JV 200 Medley Relay,1,4,5,2,3
+3,350 Free Relay,4,1,2,3,5
+4,200 Fly Relay,5,2,3,1,4
+5,JV 200 Fly Relay,1,3,4,5,2
+6,200 Breast Relay,3,4,5,2,1
+7,JV 200 Breast Relay,4,5,2,1,3
+8,200 Free Relay,5,1,3,4,2
+9,JV 200 Free Relay,2,1,4,5,3
+10,400 IM Relay,3,4,1,2,5
+11,JV 400 IM Relay,1,5,2,3,4
+12,Inner tube Relay,4,1,2,3,5
+13,200 Back Relay,5,2,3,4,1
+14,JV 200 Back Relay,1,3,4,5,2
+15,400 Free Relay,3,4,1,2,5
+16,JV 400 Free Relay,4,5,2,1,3
+17,200 Medley Relay Co-ed,5,1,3,4,2
+18,200 Frosh Free Relay,2,3,1,5,4

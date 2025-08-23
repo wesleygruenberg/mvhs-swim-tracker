@@ -3952,33 +3952,6 @@ function setupCoachToolsMenu() {
           '📊 Create Personal Records from Tryouts',
           'createPRsFromTryouts'
         )
-        .addItem('🏊‍♂️ Setup Relay Events Config', 'setupRelayEvents')
-        .addItem(
-          '🏊‍♀️ Generate Smart Relay Assignments',
-          'generateRelayAssignments'
-        )
-        .addItem(
-          '📊 Refresh Swimmer Assignment Summary',
-          'refreshSwimmerAssignmentSummary'
-        )
-        .addSeparator()
-        .addItem(
-          '📋 Create My Relay Entry Sheet',
-          'createMyRelayEntrySheet'
-        )
-        .addItem(
-          '📋 Create Blank Relay Entry Sheets',
-          'createBlankRelayEntrySheets'
-        )
-        .addSeparator()
-        .addItem(
-          '⚙️ Setup Team Relay Meet Config',
-          'setupTeamRelayMeetConfig'
-        )
-        .addItem(
-          '🔧 Validate Relay Headers',
-          'validateRelayAssignmentsHeaders'
-        )
         .addSeparator()
         .addItem(
           'Generate Roster Rankings from CSV',
@@ -3987,7 +3960,19 @@ function setupCoachToolsMenu() {
     )
     .addSubMenu(
       ui
-        .createMenu('Heat Sheets')
+        .createMenu('Relay Meet')
+        .addItem('🔄 Refresh All Assignments', 'refreshAllRelayAssignments')
+        .addSeparator()
+        .addItem('⚙️ Setup Team Relay Meet Config', 'setupTeamRelayMeetConfig')
+        .addItem('🏊‍♂️ Setup Relay Events Config', 'setupRelayEvents')
+        .addSeparator()
+        .addItem('🏊‍♀️ Generate Smart Relay Assignments', 'generateRelayAssignments')
+        .addItem('📊 Refresh Swimmer Assignment Summary', 'refreshSwimmerAssignmentSummary')
+        .addItem('🔧 Validate Relay Headers', 'validateRelayAssignmentsHeaders')
+        .addSeparator()
+        .addItem('📋 Create My Relay Entry Sheet', 'createMyRelayEntrySheet')
+        .addItem('📋 Create Blank Relay Entry Sheets', 'createBlankRelayEntrySheets')
+        .addSeparator()
         .addItem('🏊 Setup Lane Assignments', 'setupLaneAssignments')
         .addItem('📄 Generate Relay Heat Sheet', 'generateRelayHeatSheet')
     )
@@ -7097,6 +7082,35 @@ function selectSwimmersForNonConventionalRelay_(eligibleSwimmers, swimmerAssignm
 }
 
 /**
+ * Refresh all relay assignments - combines refreshing swimmer assignment summary and creating relay entry sheet
+ */
+function refreshAllRelayAssignments() {
+  try {
+    // First refresh the swimmer assignment summary
+    console.log('Refreshing swimmer assignment summary...');
+    refreshSwimmerAssignmentSummary();
+    
+    // Then create/update the relay entry sheet
+    console.log('Creating My Relay Entry sheet...');
+    createMyRelayEntrySheet();
+    
+    SpreadsheetApp.getUi().alert(
+      'Success!',
+      'Refreshed all relay assignments:\n\n✅ Updated Swimmer Assignment Summary\n✅ Updated My Relay Entry Sheet\n\nAll relay data is now current.',
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    
+  } catch (e) {
+    SpreadsheetApp.getUi().alert(
+      'Error',
+      `Failed to refresh all relay assignments: ${e.message}`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
+    console.error('Refresh all relay assignments error:', e);
+  }
+}
+
+/**
  * Create relay entry sheet for your team with swimmers and their event assignments
  */
 function createMyRelayEntrySheet() {
@@ -7258,11 +7272,22 @@ function createMyRelayEntrySheet() {
       const row = swimmersData[i];
       const name = row[nameIndex];
       const gender = row[genderIndex];
-      const grade = row[gradeIndex];
+      const gradYear = row[gradeIndex];
       
       if (!name) continue;
       
-      const swimmerRow = [name, grade || ''];
+      // Calculate grade: 13 - (graduation year - current year)
+      const currentYear = new Date().getFullYear();
+      let grade = '';
+      if (gradYear && !isNaN(gradYear)) {
+        const calculatedGrade = 13 - (parseInt(gradYear) - currentYear);
+        // Ensure grade is between 9-12
+        if (calculatedGrade >= 9 && calculatedGrade <= 12) {
+          grade = calculatedGrade.toString();
+        }
+      }
+      
+      const swimmerRow = [name, grade];
       
       // Add X's for events this swimmer is assigned to
       relayEvents.forEach(event => {
@@ -7578,7 +7603,9 @@ function setupLaneAssignments() {
   
   // Get team names from Team Relay Meet Config
   const teamConfigs = getTeamConfigurations();
+  console.log('Team configs found:', teamConfigs);
   const teamNames = teamConfigs.map(config => config.teamName);
+  console.log('Team names extracted:', teamNames);
   
   if (teamNames.length === 0) {
     SpreadsheetApp.getUi().alert(
@@ -7629,6 +7656,12 @@ function setupLaneAssignments() {
     laneSheet.autoResizeColumns(1, headers.length);
     
     console.log(`Created Lane Assignments sheet with ${teamNames.length} teams: ${teamNames.join(', ')}`);
+    
+    SpreadsheetApp.getUi().alert(
+      'Lane Assignments Created',
+      `Created Lane Assignments sheet with ${teamNames.length} teams:\n${teamNames.join(', ')}\n\nYou can now edit the lane assignments for each event.`,
+      SpreadsheetApp.getUi().ButtonSet.OK
+    );
   } else {
     // Update existing sheet headers if team configuration changed
     const existingHeaders = laneSheet.getRange(1, 1, 1, laneSheet.getLastColumn()).getValues()[0];
